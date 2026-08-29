@@ -1,0 +1,18 @@
+{
+  "name": "ghostsweep-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GhostSweep Monorepo — Chrome Extension & Next.js Website",
+  "workspaces": [
+    "website"
+  ],
+  "scripts": {
+    "dev": "npm --prefix website run dev",
+    "build": "npm --prefix website run build",
+    "start": "npm --prefix website run start",
+    "lint": "npm --prefix website run lint",
+    "test": "node website/verify-following-followers-teaser.js"
+  },
+  "author": "GhostSweep",
+  "license": "UNLICENSED"
+}
