@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GhostSweep</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app-container">
+
+    <!-- MANDATORY AUTH GATE -->
+    <div id="authGate" class="auth-gate-screen">
+      <div class="auth-card">
+        <div class="auth-header">
+          <span class="brand-badge">ANONYMOUS • FREE • INSTANT</span>
+          <h1 class="brand-title">ghostsweep<span class="logo-dot">.</span></h1>
+          <p class="auth-subtitle">Log in or register to launch your audit session.</p>
+        </div>
+
+        <div class="auth-tabs">
+          <button id="tabSignInBtn" class="auth-tab-btn active">Sign In</button>
+          <button id="tabRegisterBtn" class="auth-tab-btn">Create Account</button>
+        </div>
+
+        <form id="signInForm" class="auth-form">
+          <div class="form-group">
+            <label for="loginUsername">Username</label>
+            <input type="text" id="loginUsername" class="auth-input" placeholder="Enter username" required autocomplete="username">
+          </div>
+          <div class="form-group">
+            <label for="loginPassword">Password</label>
+            <input type="password" id="loginPassword" class="auth-input" placeholder="••••••••" required autocomplete="current-password">
+          </div>
+          <div id="loginError" class="auth-error-msg hidden"></div>
+          <button type="submit" class="btn-action-primary">Sign In ➔</button>
+        </form>
+
+        <form id="registerForm" class="auth-form hidden">
+          <div class="form-group">
+            <label for="regEmail">Email Address</label>
+            <input type="email" id="regEmail" class="auth-input" placeholder="you@example.com" required autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="regUsername">Username</label>
+            <input type="text" id="regUsername" class="auth-input" placeholder="Choose username" required autocomplete="username">
+          </div>
+          <div class="form-group">
+            <label for="regPassword">Password</label>
+            <input type="password" id="regPassword" class="auth-input" placeholder="Min. 4 characters" required autocomplete="new-password">
+          </div>
+          <div id="registerError" class="auth-error-msg hidden"></div>
+          <button type="submit" class="btn-action-primary">Create Free Account ➔</button>
+        </form>
+
+        <div class="auth-footer-hint">Protected by GhostSweep Native Sandbox</div>
+      </div>
+    </div>
+
+    <!-- MAIN APP SCREEN -->
+    <div id="mainApp" class="main-app-screen hidden">
+      <!-- Header -->
+      <header class="header">
+        <div class="logo-wrap">
+          <span class="logo-text">ghostsweep<span class="logo-dot">.</span></span>
+          <span class="plan-pill free" id="planBadge">FREE</span>
+        </div>
+        <div class="header-actions">
+          <button class="btn-icon" id="helpBtn" title="How It Works & Safety Rules">?</button>
+          <span class="user-badge" id="userHandle">@user</span>
+          <button class="btn-signout" id="logoutBtn" title="Sign Out">Sign Out</button>
+        </div>
+      </header>
+
+      <!-- Auto-Pilot / Standby Banner -->
+      <div id="queueBanner" class="status-card hidden">
+        <div class="status-card-head">
+          <span class="pulse-dot" id="pulseDot"></span>
+          <span id="queueBannerTitle">Auto-Pilot Active</span>
+          <span class="timer-tag hidden" id="timerPill">Next: 60m</span>
+        </div>
+        <div class="status-card-msg" id="queueBannerStatus">Initializing...</div>
+        <div class="progress-track">
+          <div class="progress-bar" id="queueBarFill"></div>
+        </div>
+        <div class="status-card-actions">
+          <span id="queueProgressCount">0 / 0</span>
+          <button id="stopAutomationBtn" class="btn-secondary-clean" style="padding: 1px 6px; font-size: 9px;">Pause</button>
+        </div>
+      </div>
+
+      <!-- Minimal Stats Strip -->
+      <div class="stats-strip" id="statsBar">
+        <div class="stat-item">
+          <span class="stat-val" id="followingCount">-</span>
+          <span class="stat-lbl">Following</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <span class="stat-val" id="followersCount">-</span>
+          <span class="stat-lbl">Followers</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <span class="stat-val flagged" id="targetCount">-</span>
+          <span class="stat-lbl">Flagged</span>
+        </div>
+      </div>
+
+      <!-- Mode Selector Tabs -->
+      <div class="mode-tabs">
+        <button class="mode-tab-btn active" data-mode="non_reciprocal">Non-Reciprocal</button>
+        <button class="mode-tab-btn" data-mode="verified_shield">Shield Verified</button>
+        <button class="mode-tab-btn" data-mode="no_avatar">Ghost/Bots</button>
+        <button class="mode-tab-btn" data-mode="mutuals">Mutuals</button>
+      </div>
+
+      <!-- Single Audit Trigger Button -->
+      <button id="beginAuditBtn" class="btn-action-primary">
+        <span id="beginAuditText">🔍 Run Profile Audit</span>
+      </button>
+
+      <!-- Live Scan Progress -->
+      <div id="statusBox" class="status-card hidden">
+        <div class="status-card-msg" id="statusText">Scanning Instagram...</div>
+        <div class="progress-track">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+      </div>
+
+      <!-- Compact Review Deck -->
+      <section id="reviewControls" class="review-deck hidden">
+        <div class="search-line">
+          <input type="text" id="searchInput" class="search-input" placeholder="Search accounts...">
+          <button class="btn-whitelist-filter" id="whitelistToggleBtn">⭐ <span id="whiteCount">0</span></button>
+        </div>
+
+        <div class="filter-chips-row">
+          <button class="chip-btn active" data-gender="all">All (<span id="countAll">0</span>)</button>
+          <button class="chip-btn" data-gender="male">👨 Male (<span id="countMale">0</span>)</button>
+          <button class="chip-btn" data-gender="female">👩 Female (<span id="countFemale">0</span>)</button>
+          <button class="chip-btn" data-gender="other">🏢 Other (<span id="countOther">0</span>)</button>
+        </div>
+
+        <div class="batch-line">
+          <div class="batch-chips">
+            <button id="select18Btn" class="btn-batch">+18</button>
+            <button id="select50Btn" class="btn-batch">+50</button>
+            <button id="selectAllBtn" class="btn-batch">All</button>
+            <button id="deselectAllBtn" class="btn-batch">Clear</button>
+          </div>
+          <select id="sortSelect" class="select-sort-compact">
+            <option value="recent">🕒 Recent</option>
+            <option value="oldest">⏳ Oldest</option>
+            <option value="alpha_asc">🔤 Name</option>
+          </select>
+        </div>
+
+        <button id="startAutoPilotBtn" class="btn-action-primary btn-sweep" disabled>
+          🚀 Start Autonomous Sweep (0)
+        </button>
+      </section>
+
+      <!-- Scrollable User Deck -->
+      <main class="user-list-wrapper">
+        <div id="userList" class="user-list">
+          <div class="empty-state">Click "Run Profile Audit" to analyze accounts.</div>
+        </div>
+      </main>
+    </div>
+
+    <!-- 2-STEP ONBOARDING MODAL -->
+    <div id="onboardingModal" class="modal-backdrop hidden">
+      <div class="modal-box">
+        <div class="modal-step-dots">
+          <span class="step-dot active" id="dotStep1"></span>
+          <span class="step-dot" id="dotStep2"></span>
+        </div>
+
+        <div id="onboardingStep1">
+          <div class="modal-header">
+            <h2>1-Click Self-Healing Sweep</h2>
+            <p>Safe, hands-off background cleanup.</p>
+          </div>
+          <div class="steps-stack">
+            <div class="step-card">
+              <div class="step-badge">1</div>
+              <div class="step-info">
+                <strong>Staged Micro-Sessions</strong>
+                <span>Processes 18 accounts per session with 8s–12s humanized pauses to avoid burst limits.</span>
+              </div>
+            </div>
+            <div class="step-card">
+              <div class="step-badge">2</div>
+              <div class="step-info">
+                <strong>Auto-Recovery Cooldown</strong>
+                <span>If Meta enforces a cooldown, GhostSweep sleeps 60m, probes, and resumes automatically.</span>
+              </div>
+            </div>
+            <div class="step-card">
+              <div class="step-badge">3</div>
+              <div class="step-info">
+                <strong>True Background Operation</strong>
+                <span>Minimize Chrome, play games, or work. The extension handles alarms quietly.</span>
+              </div>
+            </div>
+          </div>
+          <button id="nextOnboardingBtn" class="btn-action-primary" style="margin-top: 6px;">Next: 5 Safety Rules ➔</button>
+        </div>
+
+        <div id="onboardingStep2" class="hidden">
+          <div class="modal-header">
+            <h2>5 Golden Rules for Safety</h2>
+            <p>Ensure uninterrupted background processing.</p>
+          </div>
+          <div class="steps-stack">
+            <div class="step-card">
+              <div class="step-badge">1</div>
+              <div class="step-info">
+                <strong>Keep Chrome Running</strong>
+                <span>Chrome must stay open in the background to execute wake-up alarms.</span>
+              </div>
+            </div>
+            <div class="step-card">
+              <div class="step-badge">2</div>
+              <div class="step-info">
+                <strong>Pin 1 Instagram Tab</strong>
+                <span>Keep at least 1 Instagram tab open/pinned to bridge session authentication.</span>
+              </div>
+            </div>
+            <div class="step-card">
+              <div class="step-badge">3</div>
+              <div class="step-info">
+                <strong>Prevent System Sleep</strong>
+                <span>Keep laptop connected to power so background networks aren't suspended.</span>
+              </div>
+            </div>
+            <div class="step-card">
+              <div class="step-badge">4</div>
+              <div class="step-info">
+                <strong>No Mobile Mass-Unfollowing</strong>
+                <span>Do not manually unfollow on your phone while the sweep is active.</span>
+              </div>
+            </div>
+            <div class="step-card">
+              <div class="step-badge">5</div>
+              <div class="step-info">
+                <strong>Trust the Autonomous Timers</strong>
+                <span>Let rest timers elapse on their own without manual intervention.</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-btn-row" style="margin-top: 6px;">
+            <button id="backOnboardingBtn" class="btn-secondary-clean">← Back</button>
+            <button id="finishOnboardingBtn" class="btn-action-primary" style="flex: 1;">Let's Sweep! 🚀</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Paywall Modal -->
+    <div id="paywallModal" class="modal-backdrop hidden">
+      <div class="modal-box">
+        <div class="modal-header">
+          <span class="brand-badge">PRO UPGRADE</span>
+          <h2>Unlock GhostSweep Pro</h2>
+          <p>Lifetime access to advanced filters & automated background unfollowing.</p>
+        </div>
+        <div class="steps-stack">
+          <div class="step-card"><div class="step-info"><strong>✔ Non-Reciprocal Unfollow Audit</strong></div></div>
+          <div class="step-card"><div class="step-info"><strong>✔ Verified Shield & Male/Female Filters</strong></div></div>
+          <div class="step-card"><div class="step-info"><strong>✔ 1-Click Autonomous Cooldown Recovery</strong></div></div>
+        </div>
+        <div style="text-align: center; padding: 4px;">
+          <div style="font-size: 18px; font-weight: 800;">$1.99</div>
+          <div style="font-size: 9px; color: var(--text-dim);">One-time payment • Lifetime access</div>
+        </div>
+        <button id="checkoutBtn" class="btn-action-primary btn-sweep">Upgrade Now ($1.99)</button>
+        <button id="closePaywallBtn" class="btn-secondary-clean" style="margin-top: 2px;">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Celebration Modal -->
+    <div id="celebrationModal" class="modal-backdrop hidden">
+      <div class="modal-box" style="text-align: center;">
+        <div style="font-size: 24px;">🚀</div>
+        <div class="modal-header">
+          <h2>Sweep Complete!</h2>
+          <p>Your following health metrics have been updated.</p>
+        </div>
+        <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; padding: 8px; display: flex; justify-content: space-around;">
+          <div>
+            <span style="font-size: 8.5px; color: var(--text-dim); text-transform: uppercase;">Ratio</span>
+            <div id="ratioMetric" style="font-size: 12px; font-weight: 700;">-</div>
+          </div>
+          <div>
+            <span style="font-size: 8.5px; color: var(--text-dim); text-transform: uppercase;">Cleaned</span>
+            <div id="cleanedMetric" style="font-size: 12px; font-weight: 700; color: var(--accent-cyan);">-</div>
+          </div>
+        </div>
+        <button id="closeCelebrationBtn" class="btn-action-primary">View Cleaned Deck</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="ExtPay.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
