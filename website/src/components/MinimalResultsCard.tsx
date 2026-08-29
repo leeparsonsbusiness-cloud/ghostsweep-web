@@ -387,10 +387,19 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                       src={acc.avatar}
                       alt={acc.username}
                       className="w-8 h-8 rounded-full object-cover border border-zinc-200 dark:border-zinc-700 shrink-0"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.username)}&background=0284c7&color=fff`;
+                      }}
                     />
                     <div className="text-left">
                       <div className="font-bold text-zinc-900 dark:text-white flex items-center gap-1.5">
                         <span>@{acc.username}</span>
+                        {acc.isVerified && (
+                          <span className="text-[10px] px-1 py-0.2 rounded bg-sky-100 dark:bg-sky-900/60 text-sky-600 dark:text-sky-400 font-semibold">
+                            ✓
+                          </span>
+                        )}
                         <span className="text-[10px] px-1.5 py-0.2 rounded-md font-semibold bg-zinc-200/70 dark:bg-zinc-750 text-zinc-700 dark:text-zinc-300">
                           Sample #{index + 1}
                         </span>
