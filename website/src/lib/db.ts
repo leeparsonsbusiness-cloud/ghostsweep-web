@@ -1,4 +1,3 @@
-import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
@@ -25,69 +24,78 @@ export interface DbMagicToken {
   created_at: string;
 }
 
-let dbInstance: Database.Database | null = null;
+export interface VaultState {
+  users: Record<string, DbUser>; // keyed by email
+  usersById: Record<string, string>; // userId -> email
+  unlockedAudits: Record<string, Record<string, string>>; // email -> { targetUsername: unlockedAt }
+  auditCache: Record<string, { data_json: string; created_at: string }>; // `target_username:audit_type` -> data
+  magicTokens: Record<string, DbMagicToken>;
+}
 
-function getDatabase(): Database.Database {
-  if (dbInstance) return dbInstance;
+// In-Memory Storage Layer (Serverless & Container Safe)
+let memoryVault: VaultState = {
+  users: {},
+  usersById: {},
+  unlockedAudits: {},
+  auditCache: {},
+  magicTokens: {},
+};
 
-  // Store in a persistent local data directory
-  const dataDir = path.join(process.cwd(), ".data");
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+let isInitialized = false;
+
+function getVaultPath(): string {
+  const isVercel = process.env.VERCEL === "1" || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+  if (isVercel) {
+    return path.join("/tmp", "ghostsweep_vault.json");
   }
+  return path.join(process.cwd(), ".data", "ghostsweep_vault.json");
+}
 
-  const dbPath = path.join(dataDir, "ghostsweep.db");
-  const db = new Database(dbPath);
-  db.pragma("journal_mode = WAL");
+function loadVault(): VaultState {
+  if (isInitialized) return memoryVault;
 
-  // Initialize Tables
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT,
-      stripe_customer_id TEXT,
-      created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS unlocked_audits (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id TEXT NOT NULL,
-      target_username TEXT NOT NULL,
-      unlocked_at TEXT NOT NULL,
-      UNIQUE(user_id, target_username)
-    );
-
-    CREATE TABLE IF NOT EXISTS audit_cache (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      target_username TEXT NOT NULL,
-      audit_type TEXT NOT NULL,
-      data_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      UNIQUE(target_username, audit_type)
-    );
-
-    CREATE TABLE IF NOT EXISTS magic_tokens (
-      token TEXT PRIMARY KEY,
-      email TEXT NOT NULL,
-      expires_at TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_unlocked_audits_user ON unlocked_audits(user_id);
-    CREATE INDEX IF NOT EXISTS idx_unlocked_audits_target ON unlocked_audits(target_username);
-    CREATE INDEX IF NOT EXISTS idx_audit_cache_target ON audit_cache(target_username, audit_type);
-  `);
-
-  // Safe migration for new columns
   try {
-    db.exec("ALTER TABLE users ADD COLUMN password_hash TEXT;");
-  } catch {
-    // Column already exists
+    const vaultPath = getVaultPath();
+    if (fs.existsSync(vaultPath)) {
+      const raw = fs.readFileSync(vaultPath, "utf8");
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        memoryVault = {
+          users: parsed.users || {},
+          usersById: parsed.usersById || {},
+          unlockedAudits: parsed.unlockedAudits || {},
+          auditCache: parsed.auditCache || {},
+          magicTokens: parsed.magicTokens || {},
+        };
+      }
+    }
+  } catch (err: any) {
+    console.warn("[Vault] Could not read vault file, using in-memory store:", err.message);
   }
 
-  dbInstance = db;
-  return dbInstance;
+  isInitialized = true;
+  return memoryVault;
+}
+
+function persistVault(): void {
+  try {
+    const vaultPath = getVaultPath();
+    const dir = path.dirname(vaultPath);
+
+    // Only attempt directory creation if dir does not exist
+    if (!fs.existsSync(dir)) {
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+      } catch (mkdirErr: any) {
+        // Read-only filesystem warning - continue in-memory
+        return;
+      }
+    }
+
+    fs.writeFileSync(vaultPath, JSON.stringify(memoryVault, null, 2), "utf8");
+  } catch (err: any) {
+    // Fail silently in serverless environments to prevent unhandled 500s
+  }
 }
 
 /**
@@ -108,31 +116,29 @@ export function hashPassword(password: string): string {
 /**
  * Register a new user with password / access PIN
  */
-export function registerUser(email: string, password?: string): { success: boolean; user?: DbUser; error?: string } {
-  const db = getDatabase();
+export function registerUser(
+  email: string,
+  password?: string
+): { success: boolean; user?: DbUser; error?: string } {
+  loadVault();
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes("@")) {
     return { success: false, error: "Please enter a valid email address." };
   }
 
-  const existing = db.prepare("SELECT * FROM users WHERE email = ?").get(cleanEmail) as DbUser | undefined;
+  const existing = memoryVault.users[cleanEmail];
   const passwordHash = password ? hashPassword(password) : null;
 
   if (existing) {
     if (passwordHash && !existing.password_hash) {
-      db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, existing.id);
       existing.password_hash = passwordHash;
+      persistVault();
     }
     return { success: true, user: existing };
   }
 
   const id = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const now = new Date().toISOString();
-
-  db.prepare(`
-    INSERT INTO users (id, email, password_hash, stripe_customer_id, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(id, cleanEmail, passwordHash, null, now);
 
   const newUser: DbUser = {
     id,
@@ -142,22 +148,29 @@ export function registerUser(email: string, password?: string): { success: boole
     created_at: now,
   };
 
+  memoryVault.users[cleanEmail] = newUser;
+  memoryVault.usersById[id] = cleanEmail;
+  persistVault();
+
   return { success: true, user: newUser };
 }
 
 /**
  * Authenticate a user by email + password / access PIN
  */
-export function authenticateUser(email: string, password?: string): { success: boolean; user?: DbUser; error?: string } {
-  const db = getDatabase();
+export function authenticateUser(
+  email: string,
+  password?: string
+): { success: boolean; user?: DbUser; error?: string } {
+  loadVault();
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes("@")) {
     return { success: false, error: "Please enter a valid email address." };
   }
 
-  const existing = db.prepare("SELECT * FROM users WHERE email = ?").get(cleanEmail) as DbUser | undefined;
+  const existing = memoryVault.users[cleanEmail];
   if (!existing) {
-    // If user doesn't exist yet, auto-register them
+    // If user does not exist yet, auto-register them
     return registerUser(cleanEmail, password);
   }
 
@@ -167,10 +180,10 @@ export function authenticateUser(email: string, password?: string): { success: b
       return { success: false, error: "Incorrect password. Please try again." };
     }
   } else if (password && !existing.password_hash) {
-    // Set initial password for user who previously used magic link or checkout
+    // Set initial password for user who previously unlocked via checkout
     const passwordHash = hashPassword(password);
-    db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, existing.id);
     existing.password_hash = passwordHash;
+    persistVault();
   }
 
   return { success: true, user: existing };
@@ -180,14 +193,14 @@ export function authenticateUser(email: string, password?: string): { success: b
  * Find or create a user by email
  */
 export function getOrCreateUser(email: string, stripeCustomerId?: string): DbUser {
-  const db = getDatabase();
+  loadVault();
   const cleanEmail = email.trim().toLowerCase();
 
-  const existing = db.prepare("SELECT * FROM users WHERE email = ?").get(cleanEmail) as DbUser | undefined;
+  const existing = memoryVault.users[cleanEmail];
   if (existing) {
     if (stripeCustomerId && !existing.stripe_customer_id) {
-      db.prepare("UPDATE users SET stripe_customer_id = ? WHERE id = ?").run(stripeCustomerId, existing.id);
       existing.stripe_customer_id = stripeCustomerId;
+      persistVault();
     }
     return existing;
   }
@@ -195,121 +208,116 @@ export function getOrCreateUser(email: string, stripeCustomerId?: string): DbUse
   const id = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const now = new Date().toISOString();
 
-  db.prepare(`
-    INSERT INTO users (id, email, stripe_customer_id, created_at)
-    VALUES (?, ?, ?, ?)
-  `).run(id, cleanEmail, stripeCustomerId || null, now);
-
-  return {
+  const newUser: DbUser = {
     id,
     email: cleanEmail,
     stripe_customer_id: stripeCustomerId || null,
     created_at: now,
   };
+
+  memoryVault.users[cleanEmail] = newUser;
+  memoryVault.usersById[id] = cleanEmail;
+  persistVault();
+
+  return newUser;
 }
 
 /**
  * Unlock full forensic report for a user and target Instagram handle
  */
 export function unlockAudit(emailOrUserId: string, targetUsername: string): boolean {
-  const db = getDatabase();
+  loadVault();
   const cleanTarget = normalizeTargetUsername(targetUsername);
   if (!cleanTarget) return false;
 
-  let userId = emailOrUserId;
-  if (emailOrUserId.includes("@")) {
-    const user = getOrCreateUser(emailOrUserId);
-    userId = user.id;
+  let email = emailOrUserId.trim().toLowerCase();
+  if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
+    email = memoryVault.usersById[emailOrUserId];
   }
 
-  const now = new Date().toISOString();
-  try {
-    db.prepare(`
-      INSERT OR REPLACE INTO unlocked_audits (user_id, target_username, unlocked_at)
-      VALUES (?, ?, ?)
-    `).run(userId, cleanTarget, now);
-    return true;
-  } catch (err) {
-    console.error("Failed to record unlocked audit:", err);
-    return false;
+  if (!email) return false;
+
+  // Ensure user is created
+  getOrCreateUser(email);
+
+  if (!memoryVault.unlockedAudits[email]) {
+    memoryVault.unlockedAudits[email] = {};
   }
+
+  memoryVault.unlockedAudits[email][cleanTarget] = new Date().toISOString();
+  persistVault();
+  return true;
 }
 
 /**
  * Check if a specific Instagram audit is unlocked for a user/email or guest session
  */
-export function isAuditUnlocked(emailOrUserId: string | null | undefined, targetUsername: string): boolean {
+export function isAuditUnlocked(
+  emailOrUserId: string | null | undefined,
+  targetUsername: string
+): boolean {
   if (!emailOrUserId) return false;
-  const db = getDatabase();
+  loadVault();
   const cleanTarget = normalizeTargetUsername(targetUsername);
   if (!cleanTarget) return false;
 
-  let userId = emailOrUserId;
-  if (emailOrUserId.includes("@")) {
-    const user = db.prepare("SELECT id FROM users WHERE email = ?").get(emailOrUserId.trim().toLowerCase()) as { id: string } | undefined;
-    if (!user) return false;
-    userId = user.id;
+  let email = emailOrUserId.trim().toLowerCase();
+  if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
+    email = memoryVault.usersById[emailOrUserId];
   }
 
-  const record = db.prepare(`
-    SELECT id FROM unlocked_audits WHERE user_id = ? AND target_username = ?
-  `).get(userId, cleanTarget);
-
-  return Boolean(record);
+  const userAudits = memoryVault.unlockedAudits[email];
+  return Boolean(userAudits && userAudits[cleanTarget]);
 }
 
 /**
  * Get all unlocked target usernames for a user
  */
 export function getUserUnlockedAudits(emailOrUserId: string): string[] {
-  const db = getDatabase();
-  let userId = emailOrUserId;
-  if (emailOrUserId.includes("@")) {
-    const user = db.prepare("SELECT id FROM users WHERE email = ?").get(emailOrUserId.trim().toLowerCase()) as { id: string } | undefined;
-    if (!user) return [];
-    userId = user.id;
+  if (!emailOrUserId) return [];
+  loadVault();
+  let email = emailOrUserId.trim().toLowerCase();
+  if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
+    email = memoryVault.usersById[emailOrUserId];
   }
 
-  const rows = db.prepare(`
-    SELECT target_username FROM unlocked_audits WHERE user_id = ? ORDER BY unlocked_at DESC
-  `).all(userId) as { target_username: string }[];
+  const userAudits = memoryVault.unlockedAudits[email];
+  if (!userAudits) return [];
 
-  return rows.map((r) => r.target_username);
+  return Object.keys(userAudits);
 }
 
 /**
  * Save audit cache payload
  */
 export function saveAuditCache(targetUsername: string, auditType: string, data: any): void {
-  const db = getDatabase();
+  loadVault();
   const cleanTarget = normalizeTargetUsername(targetUsername);
+  const key = `${cleanTarget}:${auditType}`;
   const now = new Date().toISOString();
-  try {
-    db.prepare(`
-      INSERT OR REPLACE INTO audit_cache (target_username, audit_type, data_json, created_at)
-      VALUES (?, ?, ?, ?)
-    `).run(cleanTarget, auditType, JSON.stringify(data), now);
-  } catch (err) {
-    console.error("Failed to save audit cache:", err);
-  }
+
+  memoryVault.auditCache[key] = {
+    data_json: JSON.stringify(data),
+    created_at: now,
+  };
+  persistVault();
 }
 
 /**
  * Get cached audit data
  */
 export function getAuditCache(targetUsername: string, auditType: string): any | null {
-  const db = getDatabase();
+  loadVault();
   const cleanTarget = normalizeTargetUsername(targetUsername);
-  try {
-    const row = db.prepare(`
-      SELECT data_json FROM audit_cache WHERE target_username = ? AND audit_type = ?
-    `).get(cleanTarget, auditType) as { data_json: string } | undefined;
+  const key = `${cleanTarget}:${auditType}`;
 
-    if (row && row.data_json) {
-      return JSON.parse(row.data_json);
+  const entry = memoryVault.auditCache[key];
+  if (entry && entry.data_json) {
+    try {
+      return JSON.parse(entry.data_json);
+    } catch {
+      return null;
     }
-  } catch (err) {
-    console.error("Failed to load audit cache:", err);
   }
   return null;
 }
@@ -318,16 +326,19 @@ export function getAuditCache(targetUsername: string, auditType: string): any | 
  * Create a magic authentication token for email login
  */
 export function createMagicToken(email: string): string {
-  const db = getDatabase();
+  loadVault();
   const cleanEmail = email.trim().toLowerCase();
   const token = `mag_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`;
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString(); // 1 hour
 
-  db.prepare(`
-    INSERT INTO magic_tokens (token, email, expires_at, created_at)
-    VALUES (?, ?, ?, ?)
-  `).run(token, cleanEmail, expiresAt, now.toISOString());
+  memoryVault.magicTokens[token] = {
+    token,
+    email: cleanEmail,
+    expires_at: expiresAt,
+    created_at: now.toISOString(),
+  };
+  persistVault();
 
   return token;
 }
@@ -336,20 +347,17 @@ export function createMagicToken(email: string): string {
  * Verify a magic authentication token
  */
 export function verifyMagicToken(token: string): { valid: boolean; email?: string } {
-  const db = getDatabase();
-  const record = db.prepare(`
-    SELECT * FROM magic_tokens WHERE token = ?
-  `).get(token) as DbMagicToken | undefined;
-
+  loadVault();
+  const record = memoryVault.magicTokens[token];
   if (!record) return { valid: false };
 
   const isExpired = new Date(record.expires_at).getTime() < Date.now();
+  delete memoryVault.magicTokens[token];
+  persistVault();
+
   if (isExpired) {
-    db.prepare("DELETE FROM magic_tokens WHERE token = ?").run(token);
     return { valid: false };
   }
 
-  // Token is valid; delete it after single-use
-  db.prepare("DELETE FROM magic_tokens WHERE token = ?").run(token);
   return { valid: true, email: record.email };
 }

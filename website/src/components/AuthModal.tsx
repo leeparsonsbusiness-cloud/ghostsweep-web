@@ -67,11 +67,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       const data = await res.json();
       if (data.success) {
+        if (data.token) {
+          localStorage.setItem("gs_session_token", data.token);
+        }
         setSuccessMessage(data.message || "Successfully authenticated!");
         onLoginSuccess(email.trim(), data.unlockedAudits || []);
         setTimeout(() => {
           onClose();
-        }, 1200);
+        }, 600);
       } else {
         setErrorMessage(data.error || "Authentication failed. Please check your details.");
       }

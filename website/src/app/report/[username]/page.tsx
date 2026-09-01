@@ -123,6 +123,14 @@ export default function ReportPage() {
     localStorage.setItem("gs_user_email", email);
   };
 
+  const handleSignOut = () => {
+    setUserEmail(null);
+    setUnlockedAudits([]);
+    localStorage.removeItem("gs_user_email");
+    localStorage.removeItem("gs_session_token");
+    document.cookie = "gs_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+  };
+
   const handleSuccessUnlock = (email: string, targetUsername: string) => {
     const cleanTarget = targetUsername.replace(/^@/, "").toLowerCase();
     setUserEmail(email);
@@ -147,6 +155,7 @@ export default function ReportPage() {
         isDark={isDark} 
         onToggleTheme={handleToggleTheme}
         onOpenAuth={handleOpenAuth}
+        onSignOut={handleSignOut}
         userEmail={userEmail}
         unlockedCount={unlockedAudits.length}
       />

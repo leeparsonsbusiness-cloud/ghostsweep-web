@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser, getUserUnlockedAudits } from "@/lib/db";
+import { createSessionToken } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,8 +27,16 @@ export async function POST(req: NextRequest) {
 
     const unlockedAudits = getUserUnlockedAudits(email);
 
+    // Generate cryptographically signed stateless JWT session token
+    const token = createSessionToken({
+      email: authRes.user.email,
+      userId: authRes.user.id,
+      unlockedAudits,
+    });
+
     const response = NextResponse.json({
       success: true,
+      token,
       user: {
         id: authRes.user.id,
         email: authRes.user.email,
@@ -34,10 +45,12 @@ export async function POST(req: NextRequest) {
       message: `Welcome back, ${email}!`,
     });
 
-    response.cookies.set("gs_session", email, {
-      httpOnly: false,
+    // Set secure httpOnly cookie
+    response.cookies.set("gs_session", token, {
+      httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 365, // 1 year
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30, // 30 days
       path: "/",
     });
 
