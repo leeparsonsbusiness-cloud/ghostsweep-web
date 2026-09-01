@@ -23,6 +23,7 @@ export default function ReportPage() {
   const [activeTab, setActiveTab] = useState<AuditTabType>("non-reciprocals");
   const [isLoading, setIsLoading] = useState(false);
   const [auditData, setAuditData] = useState<AuditResult | null>(null);
+  const [auditError, setAuditError] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [unlockedAudits, setUnlockedAudits] = useState<string[]>([]);
   const [currentUsername, setCurrentUsername] = useState<string>(targetUser);
@@ -89,6 +90,7 @@ export default function ReportPage() {
 
     setCurrentUsername(cleanUser);
     setIsLoading(true);
+    setAuditError(null);
 
     try {
       const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("gs_user_email") : null);
@@ -103,9 +105,12 @@ export default function ReportPage() {
       const json = await res.json();
       if (json.success && json.data) {
         setAuditData(json.data);
+      } else {
+        setAuditError(json.error || json.details || "Failed to audit account.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch audit data:", err);
+      setAuditError(err.message || "Network error occurred.");
     } finally {
       setIsLoading(false);
     }
@@ -168,6 +173,15 @@ export default function ReportPage() {
           onTabChange={setActiveTab}
           onOpenCheckout={handleOpenCheckout}
         />
+
+        {auditError && (
+          <div className="max-w-xl mx-auto px-4 w-full mb-6 animate-in fade-in">
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs sm:text-sm text-center">
+              <span className="font-bold">Audit Error: </span>
+              <span>{auditError}</span>
+            </div>
+          </div>
+        )}
 
         {auditData && (
           <MinimalResultsCard 

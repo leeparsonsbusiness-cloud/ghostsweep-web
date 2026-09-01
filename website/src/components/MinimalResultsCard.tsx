@@ -376,33 +376,6 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                           </span>
                         </div>
                       </div>
-
-                      {/* Badges: Gender Tag + Relative Timestamp + Reciprocity */}
-                      <div className="flex flex-wrap items-center gap-1 sm:justify-end">
-                        {/* Gender Tag */}
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                          acc.gender === "female"
-                            ? "bg-pink-50 dark:bg-pink-950/60 text-pink-600 dark:text-pink-400 border-pink-200 dark:border-pink-800/60"
-                            : "bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800/60"
-                        }`}>
-                          {acc.genderLabel || (acc.gender === "female" ? "👩 Girl" : "👨 Guy")}
-                        </span>
-
-                        {/* Relative Timestamp Estimate */}
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
-                          <Clock className="w-2.5 h-2.5 text-sky-400" />
-                          <span>{acc.timestampLabel || (index === 0 ? "🕒 ~2h ago" : index === 1 ? "🕒 ~4h ago - Last Night" : index === 2 ? "🕒 ~8h ago - Last Night" : index === 3 ? "🕒 ~12h ago - Last Night" : "🕒 ~1d ago")}</span>
-                        </span>
-
-                        {/* Reciprocity Tag */}
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                          acc.followsYou
-                            ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60"
-                            : "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800/60"
-                        }`}>
-                          {acc.reciprocityLabel || (acc.followsYou ? "🔄 Mutual" : "🚫 Doesn't Follow Back")}
-                        </span>
-                      </div>
                     </div>
                   ))}
                 </div>

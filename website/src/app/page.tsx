@@ -18,9 +18,10 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<AuditTabType>("non-reciprocals");
   const [isLoading, setIsLoading] = useState(false);
   const [auditData, setAuditData] = useState<AuditResult | null>(null);
+  const [auditError, setAuditError] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [unlockedAudits, setUnlockedAudits] = useState<string[]>([]);
-  const [currentUsername, setCurrentUsername] = useState<string>("alex.creator");
+  const [currentUsername, setCurrentUsername] = useState<string>("theleeparsons");
 
   // Initialize theme from localStorage or system preference
   useEffect(() => {
@@ -47,8 +48,8 @@ export default function Home() {
     const loadSessionAndParams = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const unlockedParam = urlParams.get("unlocked");
-      const usernameParam = urlParams.get("username");
       const emailParam = urlParams.get("email");
+      const usernameParam = urlParams.get("username");
       const authTokenParam = urlParams.get("auth_token");
 
       if (emailParam) {
@@ -97,9 +98,8 @@ export default function Home() {
         const cleanTarget = usernameParam.replace(/^@/, "").toLowerCase();
         setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
         handleAuditSubmit(cleanTarget);
-      } else {
-        // Perform initial default audit on load for instant preview
-        handleAuditSubmit("alex.creator");
+      } else if (usernameParam) {
+        handleAuditSubmit(usernameParam);
       }
     };
 
@@ -113,6 +113,7 @@ export default function Home() {
 
     setCurrentUsername(cleanUser);
     setIsLoading(true);
+    setAuditError(null);
 
     try {
       const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("gs_user_email") : null);
@@ -129,9 +130,12 @@ export default function Home() {
       const json = await res.json();
       if (json.success && json.data) {
         setAuditData(json.data);
+      } else {
+        setAuditError(json.error || json.details || "Failed to audit account.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch audit data:", err);
+      setAuditError(err.message || "Network error occurred.");
     } finally {
       setIsLoading(false);
     }
@@ -220,6 +224,15 @@ export default function Home() {
           onTabChange={setActiveTab}
           onOpenCheckout={handleOpenCheckout}
         />
+
+        {auditError && (
+          <div className="max-w-xl mx-auto px-4 w-full mb-6 animate-in fade-in">
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs sm:text-sm text-center">
+              <span className="font-bold">Audit Error: </span>
+              <span>{auditError}</span>
+            </div>
+          </div>
+        )}
 
         {/* 3. Dynamic Minimalist Results Card with 3 Core Metrics & Clean Up CTA */}
         {auditData && (
