@@ -72,9 +72,8 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
     ? auditData.followersMetrics 
     : auditData.followingMetrics;
 
-  const malePct = currentMetrics?.demographics?.malePct ?? 41;
-  const femalePct = currentMetrics?.demographics?.femalePct ?? 53;
-  const inactivePct = currentMetrics?.demographics?.inactivePct ?? 6;
+  const malePct = currentMetrics?.demographics?.malePct ?? 44;
+  const femalePct = currentMetrics?.demographics?.femalePct ?? 50;
   const maleCount = currentMetrics?.demographics?.maleCount ?? Math.round(((currentMetrics?.totalCount || 1000) * malePct) / 100);
   const femaleCount = currentMetrics?.demographics?.femaleCount ?? Math.round(((currentMetrics?.totalCount || 1000) * femalePct) / 100);
   const totalCount = currentMetrics?.totalCount || (selectedTargetType === "followers" ? auditData.followers : auditData.following);
@@ -94,16 +93,10 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
     return true;
   });
 
-  // Top 5 preview accounts for the Free state based on active gender filter
+  // Top 5 preview accounts for the Free state
   const previewAccounts = React.useMemo(() => {
-    let pool = allAccounts;
-    if (genderFilter === "female") {
-      pool = allAccounts.filter((a) => a.gender === "female");
-    } else if (genderFilter === "male") {
-      pool = allAccounts.filter((a) => a.gender === "male");
-    }
-    return pool.slice(0, 5);
-  }, [allAccounts, genderFilter]);
+    return (currentMetrics?.sampleAccounts || allAccounts).slice(0, 5);
+  }, [currentMetrics?.sampleAccounts, allAccounts]);
 
   const handleExportCSV = () => {
     const headers = ["Chronological Rank", "Username", "Name", "Gender", "Recent Timestamp", "Reciprocity", "Post Count", "Followers"];
@@ -184,47 +177,52 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
           </div>
         </div>
 
-        {/* 2. Top Metric Bar: Forensic Activity Summary (Girls Followed & Guys Followed) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 py-4 border-b border-zinc-100 dark:border-zinc-800/80">
-          {/* Girls Followed */}
-          <div className="p-3 rounded-xl bg-pink-50/50 dark:bg-pink-950/20 border border-pink-200/60 dark:border-pink-900/40 text-left">
-            <div className="flex items-center justify-between text-xs text-pink-600 dark:text-pink-400 font-semibold mb-1">
-              <span>👩 Girls Followed</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-pink-100 dark:bg-pink-900/60 font-bold">
-                {femalePct}%
-              </span>
+        {/* 2. Demographic Ratio Breakdown (Paid Tier Unlocked) */}
+        {isUnlocked && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 py-4 border-b border-zinc-100 dark:border-zinc-800/80 animate-in fade-in">
+            {/* Girls Followed */}
+            <div className="p-3 rounded-xl bg-pink-50/50 dark:bg-pink-950/20 border border-pink-200/60 dark:border-pink-900/40 text-left">
+              <div className="flex items-center justify-between text-xs text-pink-600 dark:text-pink-400 font-semibold mb-1">
+                <span>👩 Girls Followed</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-pink-100 dark:bg-pink-900/60 font-bold">
+                  {femalePct}%
+                </span>
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white font-mono">
+                ~{femaleCount.toLocaleString()}
+              </div>
+              <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                Female accounts &amp; models
+              </p>
             </div>
-            <div className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white font-mono">
-              ~{femaleCount.toLocaleString()}
-            </div>
-            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-              Female accounts &amp; models
-            </p>
-          </div>
 
-          {/* Guys Followed */}
-          <div className="p-3 rounded-xl bg-sky-50/50 dark:bg-sky-950/20 border border-sky-200/60 dark:border-sky-900/40 text-left">
-            <div className="flex items-center justify-between text-xs text-sky-600 dark:text-sky-400 font-semibold mb-1">
-              <span>👨 Guys Followed</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-900/60 font-bold">
-                {malePct}%
-              </span>
+            {/* Guys Followed */}
+            <div className="p-3 rounded-xl bg-sky-50/50 dark:bg-sky-950/20 border border-sky-200/60 dark:border-sky-900/40 text-left">
+              <div className="flex items-center justify-between text-xs text-sky-600 dark:text-sky-400 font-semibold mb-1">
+                <span>👨 Guys Followed</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-900/60 font-bold">
+                  {malePct}%
+                </span>
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white font-mono">
+                ~{maleCount.toLocaleString()}
+              </div>
+              <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                Male accounts &amp; creators
+              </p>
             </div>
-            <div className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white font-mono">
-              ~{maleCount.toLocaleString()}
-            </div>
-            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-              Male accounts &amp; creators
-            </p>
           </div>
-        </div>
+        )}
 
-        {/* 3. Category Switcher: [ 👀 Accounts They Followed ] | [ 👥 Accounts That Followed Them ] */}
+        {/* 3. Auditing Switcher Tab Bar: [ 👀 Recent Follows (5) ] | [ 👥 Recent Followers (5) ] */}
         <div className="flex items-center justify-center p-1 bg-zinc-100 dark:bg-zinc-800/70 rounded-xl max-w-md mx-auto my-4 border border-zinc-200 dark:border-zinc-700/60 text-xs font-bold shadow-xs">
           <button
             type="button"
             id="target-toggle-following"
-            onClick={() => setSelectedTargetType("following")}
+            onClick={() => {
+              setSelectedTargetType("following");
+              setGenderFilter("all");
+            }}
             className={`flex-1 py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
               selectedTargetType === "following"
                 ? "bg-white dark:bg-zinc-900 text-zinc-950 dark:text-white shadow-sm border border-zinc-200/80 dark:border-zinc-700 font-extrabold"
@@ -232,12 +230,17 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
             }`}
           >
             <Eye className="w-3.5 h-3.5 text-sky-400" />
-            <span>Accounts They Followed ({formatNumber(auditData.following || auditData.following_count)})</span>
+            <span>
+              Recent Follows {isUnlocked ? `(${formatNumber(auditData.following || auditData.following_count)})` : "(5)"}
+            </span>
           </button>
           <button
             type="button"
             id="target-toggle-followers"
-            onClick={() => setSelectedTargetType("followers")}
+            onClick={() => {
+              setSelectedTargetType("followers");
+              setGenderFilter("all");
+            }}
             className={`flex-1 py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
               selectedTargetType === "followers"
                 ? "bg-white dark:bg-zinc-900 text-zinc-950 dark:text-white shadow-sm border border-zinc-200/80 dark:border-zinc-700 font-extrabold"
@@ -245,13 +248,16 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5 text-pink-400" />
-            <span>Followers ({formatNumber(auditData.followers || auditData.follower_count)})</span>
+            <span>
+              Recent Followers {isUnlocked ? `(${formatNumber(auditData.followers || auditData.follower_count)})` : "(5)"}
+            </span>
           </button>
         </div>
 
-        {/* 4. Gender Filter Pills: [ 🌐 All ] [ 👩 Girls Only ] [ 👨 Guys Only ] */}
+        {/* 4. Filter Bar with Gated Gender Tabs: [ 🌐 All ] [ 👩 Girls Only 🔒 ] [ 👨 Guys Only 🔒 ] */}
         <div className="flex items-center justify-between gap-2 mb-3 pt-2">
           <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
+            {/* All Filter Pill */}
             <button
               type="button"
               id="filter-pill-all"
@@ -262,31 +268,61 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                   : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
               }`}
             >
-              <span>🌐 All ({allAccounts.length})</span>
+              <span>🌐 All {isUnlocked ? `(${allAccounts.length})` : ""}</span>
             </button>
+
+            {/* Girls Only Filter Pill (Gated on Free Tier) */}
             <button
               type="button"
               id="filter-pill-female"
-              onClick={() => setGenderFilter("female")}
+              onClick={() => {
+                if (!isUnlocked) {
+                  onOpenCheckout();
+                } else {
+                  setGenderFilter("female");
+                }
+              }}
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
-                genderFilter === "female"
+                isUnlocked && genderFilter === "female"
                   ? "bg-pink-600 text-white font-black shadow-xs"
-                  : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                  : isUnlocked
+                  ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                  : "bg-zinc-100 dark:bg-zinc-800/80 text-zinc-500 dark:text-zinc-400 hover:border-pink-500/40 border border-transparent hover:text-zinc-800 dark:hover:text-zinc-200 cursor-pointer"
               }`}
             >
-              <span>👩 Girls Only ({allAccounts.filter((a) => a.gender === "female").length})</span>
+              <span>👩 Girls Only</span>
+              {!isUnlocked ? (
+                <Lock className="w-3 h-3 text-pink-400" />
+              ) : (
+                <span>({allAccounts.filter((a) => a.gender === "female").length})</span>
+              )}
             </button>
+
+            {/* Guys Only Filter Pill (Gated on Free Tier) */}
             <button
               type="button"
               id="filter-pill-male"
-              onClick={() => setGenderFilter("male")}
+              onClick={() => {
+                if (!isUnlocked) {
+                  onOpenCheckout();
+                } else {
+                  setGenderFilter("male");
+                }
+              }}
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
-                genderFilter === "male"
+                isUnlocked && genderFilter === "male"
                   ? "bg-sky-600 text-white font-black shadow-xs"
-                  : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                  : isUnlocked
+                  ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                  : "bg-zinc-100 dark:bg-zinc-800/80 text-zinc-500 dark:text-zinc-400 hover:border-sky-500/40 border border-transparent hover:text-zinc-800 dark:hover:text-zinc-200 cursor-pointer"
               }`}
             >
-              <span>👨 Guys Only ({allAccounts.filter((a) => a.gender === "male").length})</span>
+              <span>👨 Guys Only</span>
+              {!isUnlocked ? (
+                <Lock className="w-3 h-3 text-sky-400" />
+              ) : (
+                <span>({allAccounts.filter((a) => a.gender === "male").length})</span>
+              )}
             </button>
           </div>
 
@@ -300,14 +336,14 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
           </button>
         </div>
 
-        {/* 5. Account Activity List & Teaser Paywall */}
+        {/* 5. Account Activity List & Paywall */}
         {showBreakdown && (
           <div id="inspect-drawer" className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 animate-in fade-in">
             {!isUnlocked ? (
-              /* FREE STATE: Top 5 Activity Previews + Frosted Glass Paywall */
+              /* FREE STATE: Exactly 5 Activity Previews in Strict Chronological Order + Frosted Paywall */
               <>
                 {/* 5 Activity Preview Rows */}
-                <div className="space-y-2 mb-3">
+                <div className="space-y-2 mb-4">
                   {previewAccounts.map((acc, index) => (
                     <div
                       key={acc.id || `preview-${index}`}
@@ -331,8 +367,8 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                                 ✓
                               </span>
                             )}
-                            <span className="text-[10px] px-1.5 py-0.2 rounded-md font-semibold bg-zinc-200/70 dark:bg-zinc-750 text-zinc-700 dark:text-zinc-300 shrink-0">
-                              #{acc.chronologicalRank + 1}
+                            <span className="text-[10px] px-1.5 py-0.2 rounded-md font-semibold bg-zinc-200/70 dark:bg-zinc-750 text-zinc-700 dark:text-zinc-300 shrink-0 font-mono">
+                              #{index + 1}
                             </span>
                           </div>
                           <span className="text-[11px] text-zinc-400 truncate block">
@@ -341,7 +377,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                         </div>
                       </div>
 
-                      {/* Badges: [ 👩 Girl ] / [ 👨 Guy ] + [ 🚫 Doesn't Follow Back / 🔄 Mutual ] (Timestamps only on paid) */}
+                      {/* Badges: Gender Tag + Relative Timestamp + Reciprocity */}
                       <div className="flex flex-wrap items-center gap-1 sm:justify-end">
                         {/* Gender Tag */}
                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
@@ -350,6 +386,12 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                             : "bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800/60"
                         }`}>
                           {acc.genderLabel || (acc.gender === "female" ? "👩 Girl" : "👨 Guy")}
+                        </span>
+
+                        {/* Relative Timestamp Estimate */}
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
+                          <Clock className="w-2.5 h-2.5 text-sky-400" />
+                          <span>{acc.timestampLabel || (index === 0 ? "🕒 ~2h ago" : index === 1 ? "🕒 ~4h ago - Last Night" : index === 2 ? "🕒 ~8h ago - Last Night" : index === 3 ? "🕒 ~12h ago - Last Night" : "🕒 ~1d ago")}</span>
                         </span>
 
                         {/* Reciprocity Tag */}
@@ -364,9 +406,33 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                     </div>
                   ))}
                 </div>
+
+                {/* Frosted Blurred Paywall Container directly underneath the 5 items */}
+                <div className="relative rounded-2xl overflow-hidden border border-zinc-300 dark:border-zinc-700/80 bg-zinc-100/90 dark:bg-zinc-800/60 p-6 text-center backdrop-blur-md shadow-md mt-2">
+                  <div className="flex flex-col items-center justify-center space-y-2.5">
+                    <div className="w-10 h-10 rounded-full bg-zinc-900 dark:bg-sky-500/20 flex items-center justify-center text-white dark:text-sky-400 shadow-sm">
+                      <Lock className="w-5 h-5 text-sky-400" />
+                    </div>
+                    <div className="text-sm sm:text-base font-black text-zinc-900 dark:text-white">
+                      Unlock full chronological follow history &amp; gender filters for $1.99
+                    </div>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-300 max-w-md">
+                      See all {totalCount.toLocaleString()} follows from newest to oldest, filter every follow by Girls/Guys, and full CSV export.
+                    </p>
+
+                    <button
+                      type="button"
+                      id="unlock-list-cta-btn"
+                      onClick={onOpenCheckout}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-black text-xs sm:text-sm text-zinc-950 bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg mt-2 cursor-pointer"
+                    >
+                      <span>Unlock Full Activity History ($1.99) ➔</span>
+                    </button>
+                  </div>
+                </div>
               </>
             ) : (
-              /* PAID UNLOCKED STATE: Full Searchable & Filterable Table */
+              /* PAID UNLOCKED STATE: Full Searchable & Filterable Table (500 Accounts) */
               <div className="space-y-3">
                 {/* Search Bar & Export Controls */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
@@ -384,7 +450,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                   <button
                     type="button"
                     onClick={handleExportCSV}
-                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors shrink-0"
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors shrink-0 cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5 text-sky-500" />
                     <span>Download Report / CSV</span>
@@ -463,35 +529,17 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
         )}
       </div>
 
-      {/* Instant Web-Based Activity Forensics CTA Banner */}
+      {/* Trust & Instant Access Banner */}
       {!isUnlocked && (
-        <div className="rounded-2xl bg-gradient-to-br from-zinc-900 to-black border border-zinc-800 p-6 text-center text-white shadow-xl">
-          <h3 className="text-base sm:text-lg font-black mb-2 flex items-center justify-center gap-2">
-            <span>🔍 Track Anyone&apos;s Real Activity</span>
-          </h3>
-          <p className="text-xs text-zinc-400 max-w-lg mx-auto mb-4">
-            GhostSweep inspects exact chronological following order, timestamp intervals, and gender distribution without logging into Instagram or notifying the user.
-          </p>
-
-          <button
-            type="button"
-            id="unlock-list-cta-btn"
-            onClick={onOpenCheckout}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-black text-xs sm:text-sm text-zinc-950 bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-400 shadow-md transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-          >
-            <span>Unlock Full Activity History ($1.99) ➔</span>
-          </button>
-
-          <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-zinc-500 font-medium mt-4">
-            <span className="flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>100% Anonymous Search</span>
-            </span>
-            <span>•</span>
-            <span>Zero Passwords Required</span>
-            <span>•</span>
-            <span className="text-sky-400 font-semibold">$1.99 One-Time Access</span>
-          </div>
+        <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-zinc-500 font-medium my-2">
+          <span className="flex items-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>100% Anonymous Search</span>
+          </span>
+          <span>•</span>
+          <span>Zero Passwords Required</span>
+          <span>•</span>
+          <span className="text-sky-400 font-semibold">$1.99 One-Time Access</span>
         </div>
       )}
     </div>

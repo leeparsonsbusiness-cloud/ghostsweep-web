@@ -7,6 +7,8 @@ import {
   ClassificationGender 
 } from "@/lib/classifier";
 
+import { ApifyClient } from "apify-client";
+
 export type AuditAccountItem = ClassifiedAccount;
 import { 
   getAuditCache, 
@@ -128,7 +130,7 @@ function cleanHandle(raw: string): string {
 
 /**
  * Apify Instagram Scraper Integration using configured Actor & Token
- * - Free search (isPaid === false): resultsLimit = 50
+ * - Free search (isPaid === false): resultsLimit = 25 (lowest Apify batch)
  * - Paid search (isPaid === true): resultsLimit = 500
  * - Preserves exact array order returned (Index 0 = Most Recently Followed)
  */
@@ -138,76 +140,59 @@ async function fetchApifyInstagramData(
   isPaid: boolean = false
 ): Promise<{ profile: Partial<RawLiveProfile>; accounts: AccountForensicInput[] } | null> {
   const token = process.env.APIFY_API_TOKEN;
-  if (!token) return null;
+  if (!token) {
+    console.warn("[Apify] APIFY_API_TOKEN is missing. Using fallback forensics data.");
+    return null;
+  }
 
   const actorId = process.env.APIFY_ACTOR_ID || "scraping_solutions/instagram-scraper-followers-following-no-cookies";
-  const actorPath = actorId.replace("/", "~");
-  const resultsLimit = isPaid ? 500 : 50;
+  const limit = isPaid ? 500 : 25;
   const dataToScrape = targetType === "followers" ? "Followers" : "Followings";
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
-
   try {
-    const url = `https://api.apify.com/v2/acts/${actorPath}/run-sync-get-dataset-items?token=${token}`;
-    console.log(`[Apify] Executing actor ${actorId} for @${cleanUser}, targetType: ${targetType}, limit: ${resultsLimit}`);
+    const client = new ApifyClient({ token });
+    console.log(`[Apify] Calling actor ${actorId} for @${cleanUser}, dataToScrape: ${dataToScrape}, limit: ${limit}`);
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        Account: [cleanUser],
-        resultsLimit,
-        dataToScrape,
-      }),
-      cache: "no-store",
-      signal: controller.signal,
+    const run = await client.actor(actorId).call({
+      Account: [cleanUser],
+      resultsLimit: limit,
+      dataToScrape,
     });
 
-    clearTimeout(timeoutId);
+    const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
-    if (response.ok) {
-      const items = await response.json();
-      if (Array.isArray(items) && items.length > 0) {
-        console.log(`[Apify] Received ${items.length} accounts from Apify for @${cleanUser}`);
-        const accounts: AccountForensicInput[] = items.map((item: any, idx: number) => {
-          const rawPic = item.profilePicUrl || item.profile_pic_url || item.profilePicUrlHD || item.avatar || "";
-          const proxiedAvatar = rawPic ? `/api/proxy-image?url=${encodeURIComponent(rawPic)}` : "";
-          const uname = item.username || item.handle || `user_${idx + 1}`;
-          return {
-            username: uname,
-            name: item.fullName || item.full_name || item.name || uname,
-            bio: item.biography || item.bio || "",
-            avatar: proxiedAvatar,
-            isVerified: Boolean(item.isVerified || item.is_verified || item.verified),
-            isPrivate: Boolean(item.isPrivate || item.is_private),
-            postCount: item.postsCount ?? item.media_count,
-            followersCount: item.followersCount ?? item.follower_count,
-            followingCount: item.followingCount ?? item.following_count,
-            followsYou: targetType === "followers",
-            chronologicalRank: idx, // Exact chronological preservation (Index 0 = Most Recently Followed)
-          };
-        });
-
+    if (Array.isArray(items) && items.length > 0) {
+      console.log(`[Apify] Received ${items.length} accounts from Apify for @${cleanUser}`);
+      const accounts: AccountForensicInput[] = items.map((item: any, idx: number) => {
+        const rawPic = item.profilePicUrl || item.profile_pic_url || item.profilePicUrlHD || item.avatar || "";
+        const proxiedAvatar = rawPic ? `/api/proxy-image?url=${encodeURIComponent(rawPic)}` : "";
+        const uname = item.username || item.handle || `user_${idx + 1}`;
         return {
-          profile: {
-            username: cleanUser,
-            fullName: cleanUser,
-            isLiveRealData: true,
-          },
-          accounts,
+          username: uname,
+          name: item.fullName || item.full_name || item.name || uname,
+          bio: item.biography || item.bio || "",
+          avatar: proxiedAvatar,
+          isVerified: Boolean(item.isVerified || item.is_verified || item.verified),
+          isPrivate: Boolean(item.isPrivate || item.is_private),
+          postCount: item.postsCount ?? item.media_count ?? 15,
+          followersCount: item.followersCount ?? item.follower_count ?? 500,
+          followingCount: item.followingCount ?? item.following_count ?? 350,
+          followsYou: targetType === "followers",
+          chronologicalRank: idx, // Exact chronological preservation (Index 0 = Most Recently Followed)
         };
-      }
-    } else {
-      console.warn(`[Apify] Response status: ${response.status} ${response.statusText}`);
+      });
+
+      return {
+        profile: {
+          username: cleanUser,
+          fullName: cleanUser,
+          isLiveRealData: true,
+        },
+        accounts,
+      };
     }
   } catch (err: any) {
-    clearTimeout(timeoutId);
-    if (err.name === "AbortError") {
-      console.warn(`[Apify] Scraper timed out after 8s for @${cleanUser}. Using high-fidelity instant forensics engine.`);
-    } else {
-      console.error("[Apify] Scraping execution error:", err.message);
-    }
+    console.error("[Apify] Live scraping error:", err.message);
   }
 
   return null;
@@ -593,20 +578,9 @@ function calculateAuditMetrics(
   else if (healthScore < 75) reachPenalty = 26;
   else if (healthScore < 88) reachPenalty = 10;
 
-  // Helper to extract exactly 5 female + 5 male preview accounts
-  const build10PreviewAccounts = (allClassified: ClassifiedAccount[]): ClassifiedAccount[] => {
-    const females = allClassified.filter((a) => a.gender === "female").slice(0, 5);
-    const males = allClassified.filter((a) => a.gender === "male").slice(0, 5);
-
-    // Format contextual tags cleanly
-    females.forEach((f) => {
-      f.tag = "👩 Female • 🕒 Recent";
-    });
-    males.forEach((m) => {
-      m.tag = "👨 Male • 🕒 Recent";
-    });
-
-    return [...females, ...males];
+  // Helper to extract exactly the 5 most recent accounts in strict chronological order
+  const build5PreviewAccounts = (allClassified: ClassifiedAccount[]): ClassifiedAccount[] => {
+    return allClassified.slice(0, 5);
   };
 
   // 1. Classify Following Accounts (Preserving Chronological Order)
@@ -629,7 +603,7 @@ function calculateAuditMetrics(
     Math.max(12, safeFollowing * (1 - Math.min(1, (healthScore / 100) * 1.25)))
   );
 
-  const following10Preview = build10PreviewAccounts(followingClassification.accounts);
+  const following5Preview = build5PreviewAccounts(followingClassification.accounts);
 
   const followingMetrics: TargetTypeMetrics = {
     targetType: "following",
@@ -651,9 +625,9 @@ function calculateAuditMetrics(
     ghostCount: followingInactiveCount,
     nonReciprocalsCount: followingNonReciprocals,
     reachPenalty: reachPenalty,
-    lockedCount: Math.max(0, safeFollowing - following10Preview.length),
-    sampleAccounts: following10Preview,
-    allAccounts: followingClassification.accounts,
+    lockedCount: Math.max(0, safeFollowing - following5Preview.length),
+    sampleAccounts: following5Preview,
+    allAccounts: unlocked ? followingClassification.accounts : following5Preview,
   };
 
   // 2. Classify Followers Accounts
@@ -674,7 +648,7 @@ function calculateAuditMetrics(
   const followerInactiveCount = Math.round((safeFollowers * followerInactivePct) / 100);
   const followerGhostBurden = Math.round(safeFollowers * 0.18);
 
-  const followers10Preview = build10PreviewAccounts(followersClassification.accounts);
+  const followers5Preview = build5PreviewAccounts(followersClassification.accounts);
 
   const followersMetrics: TargetTypeMetrics = {
     targetType: "followers",
@@ -696,9 +670,9 @@ function calculateAuditMetrics(
     ghostCount: followerGhostBurden,
     nonReciprocalsCount: 0,
     reachPenalty: Math.min(85, reachPenalty + 10),
-    lockedCount: Math.max(0, safeFollowers - followers10Preview.length),
-    sampleAccounts: followers10Preview,
-    allAccounts: followersClassification.accounts,
+    lockedCount: Math.max(0, safeFollowers - followers5Preview.length),
+    sampleAccounts: followers5Preview,
+    allAccounts: unlocked ? followersClassification.accounts : followers5Preview,
   };
 
   const activeMetrics = targetType === "followers" ? followersMetrics : followingMetrics;
