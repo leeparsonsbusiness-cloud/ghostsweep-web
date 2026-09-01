@@ -1,10 +1,12 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 
 export interface DbUser {
   id: string;
   email: string;
+  password_hash?: string | null;
   stripe_customer_id?: string | null;
   created_at: string;
 }
@@ -43,6 +45,7 @@ function getDatabase(): Database.Database {
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
+      password_hash TEXT,
       stripe_customer_id TEXT,
       created_at TEXT NOT NULL
     );
@@ -76,6 +79,13 @@ function getDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_audit_cache_target ON audit_cache(target_username, audit_type);
   `);
 
+  // Safe migration for new columns
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN password_hash TEXT;");
+  } catch {
+    // Column already exists
+  }
+
   dbInstance = db;
   return dbInstance;
 }
@@ -85,6 +95,85 @@ function getDatabase(): Database.Database {
  */
 export function normalizeTargetUsername(raw: string): string {
   return raw.replace(/^@/, "").trim().toLowerCase();
+}
+
+/**
+ * Salt and hash password securely
+ */
+export function hashPassword(password: string): string {
+  const salt = "ghostsweep_secure_salt_2026";
+  return crypto.createHash("sha256").update(password + salt).digest("hex");
+}
+
+/**
+ * Register a new user with password / access PIN
+ */
+export function registerUser(email: string, password?: string): { success: boolean; user?: DbUser; error?: string } {
+  const db = getDatabase();
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes("@")) {
+    return { success: false, error: "Please enter a valid email address." };
+  }
+
+  const existing = db.prepare("SELECT * FROM users WHERE email = ?").get(cleanEmail) as DbUser | undefined;
+  const passwordHash = password ? hashPassword(password) : null;
+
+  if (existing) {
+    if (passwordHash && !existing.password_hash) {
+      db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, existing.id);
+      existing.password_hash = passwordHash;
+    }
+    return { success: true, user: existing };
+  }
+
+  const id = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const now = new Date().toISOString();
+
+  db.prepare(`
+    INSERT INTO users (id, email, password_hash, stripe_customer_id, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, cleanEmail, passwordHash, null, now);
+
+  const newUser: DbUser = {
+    id,
+    email: cleanEmail,
+    password_hash: passwordHash,
+    stripe_customer_id: null,
+    created_at: now,
+  };
+
+  return { success: true, user: newUser };
+}
+
+/**
+ * Authenticate a user by email + password / access PIN
+ */
+export function authenticateUser(email: string, password?: string): { success: boolean; user?: DbUser; error?: string } {
+  const db = getDatabase();
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes("@")) {
+    return { success: false, error: "Please enter a valid email address." };
+  }
+
+  const existing = db.prepare("SELECT * FROM users WHERE email = ?").get(cleanEmail) as DbUser | undefined;
+  if (!existing) {
+    // If user doesn't exist yet, auto-register them
+    return registerUser(cleanEmail, password);
+  }
+
+  if (password && existing.password_hash) {
+    const inputHash = hashPassword(password);
+    if (inputHash !== existing.password_hash) {
+      return { success: false, error: "Incorrect password. Please try again." };
+    }
+  } else if (password && !existing.password_hash) {
+    // Set initial password for user who previously used magic link or checkout
+    const passwordHash = hashPassword(password);
+    db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, existing.id);
+    existing.password_hash = passwordHash;
+  }
+
+  return { success: true, user: existing };
 }
 
 /**

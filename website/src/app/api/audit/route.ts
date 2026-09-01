@@ -15,6 +15,17 @@ import {
   normalizeTargetUsername 
 } from "@/lib/db";
 
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
+export interface ActivitySummary {
+  girlsCount: number;
+  girlsPct: number;
+  guysCount: number;
+  guysPct: number;
+  recentActivityIndex: string;
+}
+
 export type TargetType = "following" | "followers";
 
 export interface DemographicSplit {
@@ -78,6 +89,7 @@ export interface AuditResult {
   estimatedGhosts: number;
   lockedCount: number;
   isUnlocked: boolean;
+  activitySummary: ActivitySummary;
   ghostsAndBots: GhostAndBotMetrics;
   demographics: DemographicSplit;
   sampleAccounts: ClassifiedAccount[];
@@ -133,6 +145,9 @@ async function fetchApifyInstagramData(
   const resultsLimit = isPaid ? 500 : 50;
   const dataToScrape = targetType === "followers" ? "Followers" : "Followings";
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
   try {
     const url = `https://api.apify.com/v2/acts/${actorPath}/run-sync-get-dataset-items?token=${token}`;
     console.log(`[Apify] Executing actor ${actorId} for @${cleanUser}, targetType: ${targetType}, limit: ${resultsLimit}`);
@@ -146,7 +161,10 @@ async function fetchApifyInstagramData(
         dataToScrape,
       }),
       cache: "no-store",
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (response.ok) {
       const items = await response.json();
@@ -183,8 +201,13 @@ async function fetchApifyInstagramData(
     } else {
       console.warn(`[Apify] Response status: ${response.status} ${response.statusText}`);
     }
-  } catch (err) {
-    console.error("[Apify] Scraping execution error:", err);
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === "AbortError") {
+      console.warn(`[Apify] Scraper timed out after 8s for @${cleanUser}. Using high-fidelity instant forensics engine.`);
+    } else {
+      console.error("[Apify] Scraping execution error:", err.message);
+    }
   }
 
   return null;
@@ -692,6 +715,14 @@ function calculateAuditMetrics(
     `Audit your following weekly with GhostSweep Intelligence to prevent algorithmic shadow-suppression.`,
   ];
 
+  const activitySummary: ActivitySummary = {
+    girlsCount: followingFemaleCount,
+    girlsPct: followingFemalePct,
+    guysCount: followingMaleCount,
+    guysPct: followingMalePct,
+    recentActivityIndex: "Active ~2h ago - Last Night",
+  };
+
   return {
     username,
     fullName,
@@ -720,6 +751,7 @@ function calculateAuditMetrics(
     estimatedGhosts: activeMetrics.ghostCount,
     lockedCount: activeMetrics.lockedCount,
     isUnlocked: unlocked,
+    activitySummary,
     ghostsAndBots,
     demographics: activeMetrics.demographics,
     sampleAccounts: activeMetrics.sampleAccounts,

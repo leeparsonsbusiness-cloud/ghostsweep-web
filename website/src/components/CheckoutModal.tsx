@@ -112,10 +112,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
               <div>
                 <h3 className="text-base font-bold text-zinc-900 dark:text-white">
-                  Unlock Forensic Report
+                  Unlock Full Activity History
                 </h3>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Instant full chronological access for @{targetUsername || "alex.creator"}
+                  Instant chronological follow forensics &amp; timestamps for @{targetUsername || "alex.creator"}
                 </p>
               </div>
             </div>
@@ -123,7 +123,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             {/* Order Summary Box */}
             <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 mb-5">
               <div className="flex items-center justify-between text-xs pb-2.5 border-b border-zinc-200 dark:border-zinc-750">
-                <span className="text-zinc-600 dark:text-zinc-300 font-medium">Complete Forensic List &amp; Ranks</span>
+                <span className="text-zinc-600 dark:text-zinc-300 font-medium">Complete Chronological Follow History</span>
                 <span className="text-zinc-900 dark:text-white font-bold font-mono text-sm">$1.99</span>
               </div>
               <div className="flex items-center justify-between text-[11px] pt-2 text-zinc-500 dark:text-zinc-400">
@@ -179,17 +179,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 id="checkout-submit-btn"
                 type="submit"
                 disabled={isProcessing}
-                className="w-full mt-2 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-zinc-900 hover:bg-black dark:bg-sky-500 dark:hover:bg-sky-400 dark:text-zinc-950 transition-all flex items-center justify-center gap-2 disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99]"
+                className="w-full mt-2 py-3 px-4 rounded-xl font-black text-xs sm:text-sm text-zinc-950 bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-400 shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
               >
                 {isProcessing ? (
                   <span className="flex items-center gap-2">
-                    <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    <span className="w-3.5 h-3.5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
                     Processing Payment &amp; Unlocking...
                   </span>
                 ) : (
                   <>
-                    <span>Unlock Full List &amp; Instant Access ($1.99)</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <span>Unlock Full Activity History ($1.99) ➔</span>
                   </>
                 )}
               </button>

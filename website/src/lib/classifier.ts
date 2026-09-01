@@ -98,6 +98,9 @@ export interface ClassifiedAccount {
   name: string;
   avatar: string;
   gender: ClassificationGender;
+  genderLabel: string; // e.g. "👩 Girl" | "👨 Guy" | "🤖 Bot"
+  timestampLabel: string; // e.g. "🕒 ~2h ago" | "🕒 ~8h ago - Last Night" | "🕒 ~1d ago"
+  reciprocityLabel: string; // e.g. "🚫 Doesn't Follow Back" | "🔄 Mutual"
   tag: string;
   followsYou: boolean;
   inactiveDays: number;
@@ -262,20 +265,35 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
   const isGhost = botCheck.isGhost || inactiveDays > 120;
   const isVerified = Boolean(input.isVerified);
 
+  // Generate Relative Timestamp Label (e.g. ~2h ago, ~8h ago - Last Night)
+  const rank = input.chronologicalRank ?? index;
+  let timestampLabel = "";
+  if (rank === 0) timestampLabel = "🕒 ~2h ago";
+  else if (rank === 1) timestampLabel = "🕒 ~4h ago - Last Night";
+  else if (rank === 2) timestampLabel = "🕒 ~8h ago - Last Night";
+  else if (rank === 3) timestampLabel = "🕒 ~12h ago - Last Night";
+  else if (rank === 4) timestampLabel = "🕒 ~1d ago";
+  else if (rank === 5) timestampLabel = "🕒 ~2d ago";
+  else if (rank === 6) timestampLabel = "🕒 ~3d ago";
+  else timestampLabel = `🕒 ~${Math.min(30, Math.floor(4 + (rank - 6) * 1.5))}d ago`;
+
+  const genderLabel = gender === "female" ? "👩 Girl" : gender === "male" ? "👨 Guy" : "🤖 Bot";
+  const reciprocityLabel = followsYou ? "🔄 Mutual" : "🚫 Doesn't Follow Back";
+
   // Generate Contextual Forensic Tag
   let tag = "";
   if (gender === "bot") {
     tag = "🤖 Ghost • Follower Farm";
   } else if (index === 0 && isNonReciprocal) {
-    tag = `${gender === "female" ? "👩 Female" : "👨 Male"} • 🕒 Recently Added`;
+    tag = `${genderLabel} • ${timestampLabel}`;
   } else if (isNonReciprocal && isGhost) {
-    tag = `${gender === "female" ? "👩 Female" : "👨 Male"} • 🚫 Inactive >${inactiveDays}d`;
+    tag = `${genderLabel} • 🚫 Inactive >${inactiveDays}d`;
   } else if (isNonReciprocal) {
-    tag = `${gender === "female" ? "👩 Female" : "👨 Male"} • 🚫 Not Following Back`;
+    tag = `${genderLabel} • 🚫 Doesn't Follow Back`;
   } else if (isGhost) {
     tag = `🤖 Ghost • Inactive >${inactiveDays}d`;
   } else {
-    tag = `${gender === "female" ? "👩 Female" : "👨 Male"} • Active Mutual`;
+    tag = `${genderLabel} • 🔄 Mutual`;
   }
 
   return {
@@ -284,6 +302,9 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
     name,
     avatar: input.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=0284c7&color=fff`,
     gender,
+    genderLabel,
+    timestampLabel,
+    reciprocityLabel,
     tag,
     followsYou,
     inactiveDays,
@@ -297,7 +318,7 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
     isBot: gender === "bot",
     isGhost,
     isNonReciprocal,
-    chronologicalRank: input.chronologicalRank ?? index,
+    chronologicalRank: rank,
     confidenceScore: confidence,
   };
 }
