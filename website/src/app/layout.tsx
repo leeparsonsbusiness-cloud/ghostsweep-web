@@ -3,13 +3,13 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://ghostsweep.info"),
-  title: "GhostSweep — Clean Your Following. Reclaim Your Instagram Algorithm.",
-  description: "High-performance, client-side Chrome extension to audit non-reciprocal accounts, filter demographics, and safely unfollow ghost profiles in the background.",
-  keywords: ["instagram cleaner", "ghost follower audit", "safe unfollow extension", "instagram reach booster", "ghostsweep", "instagram ratio analyzer"],
+  title: "GhostSweep — Instagram Intelligence & Forensic Profile Auditor",
+  description: "Web-based Instagram intelligence and forensic audit tool to inspect non-reciprocals, analyze chronological follower data, and calculate reach suppression without logging in.",
+  keywords: ["instagram intelligence", "instagram forensic audit", "non-reciprocal followers", "instagram reach booster", "ghostsweep", "instagram ratio analyzer", "demographic split"],
   authors: [{ name: "GhostSweep Team" }],
   openGraph: {
-    title: "GhostSweep — Instagram Follower Audit & Safe Batch Unfollow",
-    description: "Audit non-reciprocal accounts, filter demographics, and safely unfollow ghost profiles in the background.",
+    title: "GhostSweep — Instagram Intelligence & Forensic Profile Auditor",
+    description: "Audit non-reciprocal accounts, analyze chronological follower data, and calculate reach suppression without logging in.",
     url: "https://ghostsweep.info",
     siteName: "GhostSweep",
     images: [
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "GhostSweep Instagram Cleaner Preview",
+        alt: "GhostSweep Instagram Auditor Preview",
       },
     ],
     locale: "en_US",
@@ -25,8 +25,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "GhostSweep — Reclaim Your Instagram Algorithm",
-    description: "Audit non-reciprocal accounts, filter demographics, and safely unfollow ghost profiles.",
+    title: "GhostSweep — Instagram Forensic Intelligence",
+    description: "Audit non-reciprocal accounts, filter demographics, and calculate reach suppression without logging in.",
     images: ["/og-image.png"],
   },
   robots: {

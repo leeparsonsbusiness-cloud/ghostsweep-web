@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import Image from "next/image";
 
 interface MinimalFooterProps {
   onOpenLegal: (type: "terms" | "privacy" | "refund" | "contact") => void;
@@ -44,7 +43,7 @@ export const MinimalFooter: React.FC<MinimalFooterProps> = ({ onOpenLegal }) => 
 
         {/* Disclaimer */}
         <p className="text-[11px] text-zinc-400 dark:text-zinc-400 max-w-lg leading-normal">
-          © {new Date().getFullYear()} ghostsweep.info. Independent Chrome browser utility. Not affiliated with, endorsed by, or connected to Instagram, Meta, or TikTok.
+          © {new Date().getFullYear()} ghostsweep.info. Independent Instagram intelligence &amp; forensic audit utility. Not affiliated with, endorsed by, or connected to Instagram, Meta, or TikTok.
         </p>
       </div>
     </footer>

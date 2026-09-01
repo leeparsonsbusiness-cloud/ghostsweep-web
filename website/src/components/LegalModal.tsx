@@ -21,19 +21,19 @@ export const LegalModal: React.FC<LegalModalProps> = ({ type, onClose }) => {
         <div className="space-y-3.5 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
           <p><strong>Last updated: August 2026</strong></p>
           <p>
-            Welcome to GhostSweep (&quot;ghostsweep.info&quot;). By accessing our website, tools, and Chrome Extension, you agree to these Terms of Service.
+            Welcome to GhostSweep (&quot;ghostsweep.info&quot;). By accessing our website and intelligence audit tools, you agree to these Terms of Service.
           </p>
-          <h4 className="text-zinc-900 dark:text-white font-bold text-xs">1. Independent Utility</h4>
+          <h4 className="text-zinc-900 dark:text-white font-bold text-xs">1. Independent Forensic Intelligence Utility</h4>
           <p>
-            GhostSweep is an independent browser utility engineered to assist users in auditing their publicly accessible social media followings and managing their account lists safely. GhostSweep is not affiliated with, endorsed by, or partnered with Instagram, Meta Platforms, Inc., TikTok, or ByteDance Ltd.
+            GhostSweep is an independent web intelligence utility engineered to assist users in analyzing publicly accessible social media metrics and understanding demographic reach distributions. GhostSweep is not affiliated with, endorsed by, or partnered with Instagram, Meta Platforms, Inc., TikTok, or ByteDance Ltd.
           </p>
-          <h4 className="text-zinc-900 dark:text-white font-bold text-xs">2. License &amp; Usage</h4>
+          <h4 className="text-zinc-900 dark:text-white font-bold text-xs">2. Access &amp; Reports</h4>
           <p>
-            Purchases grant a single-user, non-transferable, lifetime license to use the GhostSweep Chrome extension. You agree not to reverse engineer, redistribute, or resell the software.
+            Purchases grant digital access to forensic intelligence reports and chronological rank datasets. You agree not to reverse engineer, redistribute, or resell the proprietary software or raw extracted datasets.
           </p>
-          <h4 className="text-zinc-900 dark:text-white font-bold text-xs">3. Client-Side Operations &amp; User Discretion</h4>
+          <h4 className="text-zinc-900 dark:text-white font-bold text-xs">3. Platform Compliance</h4>
           <p>
-            GhostSweep executes all automation directly within your browser&apos;s active tab with randomized human delays. You are responsible for adhering to applicable third-party platform community guidelines.
+            GhostSweep performs non-invasive public profile evaluations. You are responsible for adhering to applicable third-party platform terms of service.
           </p>
         </div>
       ),
@@ -45,19 +45,19 @@ export const LegalModal: React.FC<LegalModalProps> = ({ type, onClose }) => {
         <div className="space-y-3.5 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
           <p><strong>Last updated: August 2026</strong></p>
           <p>
-            At GhostSweep, privacy is our fundamental principle. GhostSweep was engineered as a 100% client-side Google Chrome extension.
+            At GhostSweep, user privacy is our core engineering priority.
           </p>
           <h4 className="text-zinc-900 dark:text-white font-bold text-xs">1. Zero Password Storage</h4>
           <p>
-            GhostSweep executes solely within your active browser tab. We never prompt you for, see, or transmit your Instagram password, cookies, or account session tokens to any external server.
+            GhostSweep evaluates public metrics without ever prompting you for, seeing, or transmitting your Instagram password, cookies, or account session tokens.
           </p>
-          <h4 className="text-zinc-900 dark:text-white font-bold text-xs">2. No Analytics Tracking of Your Profiles</h4>
+          <h4 className="text-zinc-900 dark:text-white font-bold text-xs">2. Confidential Audit Records</h4>
           <p>
-            We do not track or store the usernames of accounts you follow, audit, or unfollow. All calculations (health scores, demographic filters, whitelist preferences) are stored locally in your browser&apos;s localStorage.
+            We treat your forensic audits securely. Unlocked reports are linked to your email address for convenient member retrieval.
           </p>
           <h4 className="text-zinc-900 dark:text-white font-bold text-xs">3. Payment Information</h4>
           <p>
-            Payment processing is handled directly by Stripe. GhostSweep does not store or process credit card numbers on our servers.
+            Payment processing is handled directly by Stripe with 256-bit SSL encryption. GhostSweep never stores or processes credit card numbers on our servers.
           </p>
         </div>
       ),
@@ -69,11 +69,11 @@ export const LegalModal: React.FC<LegalModalProps> = ({ type, onClose }) => {
         <div className="space-y-3.5 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
           <p><strong>100% Satisfaction Guarantee</strong></p>
           <p>
-            We stand behind the quality and safety of GhostSweep. If you are not completely satisfied with GhostSweep for any reason within 14 days of your purchase, we will issue a full 100% refund.
+            We stand behind the precision of GhostSweep Intelligence. If you are not completely satisfied with your audit report within 14 days of your purchase, we will issue a full 100% refund.
           </p>
           <h4 className="text-zinc-900 dark:text-white font-bold text-xs">How to Request a Refund</h4>
           <p>
-            Simply email <strong>support@ghostsweep.info</strong> with your purchase email or license key, and our support team will process your refund within 24 hours.
+            Simply email <strong>support@ghostsweep.info</strong> with your purchase email address, and our support team will process your refund within 24 hours.
           </p>
         </div>
       ),
@@ -84,7 +84,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({ type, onClose }) => {
       body: (
         <div className="space-y-3.5 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
           <p>
-            Have a question, feedback, or need technical assistance with the GhostSweep Chrome extension?
+            Have a question, feedback, or need technical assistance with your forensic audit report?
           </p>
           <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700">
             <span className="text-[10px] text-zinc-400 uppercase font-bold">Email Support</span>

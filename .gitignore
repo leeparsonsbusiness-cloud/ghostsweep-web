@@ -37,3 +37,6 @@ website/.env*.local
 # Test artifacts
 scratch/
 .tempmediaStorage/
+*.db
+website/.data/
+.data/

@@ -8,8 +8,6 @@ import {
   Lock, 
   CreditCard, 
   Check, 
-  Copy, 
-  Download, 
   Sparkles, 
   ArrowRight,
   AlertCircle
@@ -19,16 +17,23 @@ import confetti from "canvas-confetti";
 interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
+  targetUsername: string;
+  userEmail: string;
+  onSuccessUnlock: (email: string, targetUsername: string) => void;
   onOpenLegal: (type: "terms" | "privacy" | "refund") => void;
 }
 
-export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onOpenLegal }) => {
-  const [email, setEmail] = useState("");
+export const CheckoutModal: React.FC<CheckoutModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  targetUsername,
+  userEmail,
+  onSuccessUnlock,
+  onOpenLegal 
+}) => {
+  const [email, setEmail] = useState(userEmail || "");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [licenseKey, setLicenseKey] = useState("");
-  const [downloadUrl, setDownloadUrl] = useState("/api/download-extension");
-  const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   if (!isOpen) return null;
@@ -47,15 +52,24 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ 
+          email: email.trim(),
+          target_username: targetUsername || "alex.creator"
+        }),
       });
 
       const data = await res.json();
 
-      if (data.success && data.licenseKey) {
-        setLicenseKey(data.licenseKey);
-        setDownloadUrl(data.downloadUrl || `/api/download-extension?licenseKey=${data.licenseKey}`);
+      if (data.success) {
+        if (data.url) {
+          // Redirect to Stripe Checkout Session
+          window.location.href = data.url;
+          return;
+        }
+
+        // Instant Unlock
         setIsSuccess(true);
+        onSuccessUnlock(email.trim(), targetUsername);
         confetti({
           particleCount: 100,
           spread: 70,
@@ -70,12 +84,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(licenseKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -104,10 +112,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
               </div>
               <div>
                 <h3 className="text-base font-bold text-zinc-900 dark:text-white">
-                  GhostSweep Lifetime License
+                  Unlock Forensic Report
                 </h3>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Instant activation for Chrome & Chromium browsers
+                  Instant full chronological access for @{targetUsername || "alex.creator"}
                 </p>
               </div>
             </div>
@@ -115,13 +123,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
             {/* Order Summary Box */}
             <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 mb-5">
               <div className="flex items-center justify-between text-xs pb-2.5 border-b border-zinc-200 dark:border-zinc-750">
-                <span className="text-zinc-600 dark:text-zinc-300 font-medium">Lifetime Manifest V3 Access</span>
+                <span className="text-zinc-600 dark:text-zinc-300 font-medium">Complete Forensic List &amp; Ranks</span>
                 <span className="text-zinc-900 dark:text-white font-bold font-mono text-sm">$1.99</span>
               </div>
               <div className="flex items-center justify-between text-[11px] pt-2 text-zinc-500 dark:text-zinc-400">
                 <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  14-Day Money-Back Guarantee
+                  Instant Web Access
                 </span>
                 <span>One-Time Payment</span>
               </div>
@@ -138,7 +146,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
             <form onSubmit={handlePay} className="space-y-3.5">
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5">
-                  License Delivery Email
+                  Report Delivery &amp; Access Email
                 </label>
                 <input
                   id="checkout-email-input"
@@ -153,7 +161,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
 
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5">
-                  Payment Method (Stripe Live Verified)
+                  Payment Method (Stripe 256-bit SSL)
                 </label>
                 <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-300">
                   <div className="flex items-center gap-2">
@@ -162,7 +170,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
                   </div>
                   <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
                     <Lock className="w-3 h-3" />
-                    <span>256-bit SSL</span>
+                    <span>Secure Stripe</span>
                   </div>
                 </div>
               </div>
@@ -176,11 +184,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
                 {isProcessing ? (
                   <span className="flex items-center gap-2">
                     <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    Processing Payment & License...
+                    Processing Payment &amp; Unlocking...
                   </span>
                 ) : (
                   <>
-                    <span>Pay $1.99 & Download Extension</span>
+                    <span>Unlock Full List &amp; Instant Access ($1.99)</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -214,72 +222,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
             </div>
 
             <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-1">
-              Purchase Complete!
+              Audit Unlocked!
             </h3>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
-              Your license has been issued and linked to <strong className="text-zinc-900 dark:text-white">{email}</strong>.
+              Full forensic intelligence access for <strong className="text-zinc-900 dark:text-white">@{targetUsername}</strong> is now unlocked.
             </p>
-
-            {/* License Key Box */}
-            <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 mb-4 text-left">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1">
-                Your Lifetime License Key
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <code className="text-xs sm:text-sm font-black text-sky-600 dark:text-sky-400 font-mono">
-                  {licenseKey}
-                </code>
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="px-2.5 py-1 rounded-md bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 text-xs font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-1 hover:bg-zinc-100 dark:hover:bg-zinc-600 transition-colors"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="w-3 h-3 text-emerald-500" />
-                      <span>Copied</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3" />
-                      <span>Copy</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Download Button */}
-            <div className="space-y-2.5">
-              <a
-                href={downloadUrl}
-                download="ghostsweep-chrome-extension-v2.4.zip"
-                className="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-zinc-950 bg-sky-400 hover:bg-sky-300 dark:bg-sky-500 dark:hover:bg-sky-400 transition-all flex items-center justify-center gap-2 shadow-sm"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Extension Package (.zip)</span>
-              </a>
-
-              <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 text-left text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
-                <div className="font-bold text-zinc-900 dark:text-zinc-200 flex items-center gap-1 text-[11px]">
-                  <Sparkles className="w-3 h-3 text-sky-500" />
-                  Quick 1-Minute Chrome Setup:
-                </div>
-                <ol className="list-decimal list-inside text-zinc-500 dark:text-zinc-400 space-y-0.5 pl-1 text-[11px]">
-                  <li>Unzip the downloaded package.</li>
-                  <li>Open <code>chrome://extensions</code> in Chrome.</li>
-                  <li>Toggle on <strong>Developer mode</strong> (top right).</li>
-                  <li>Click <strong>Load unpacked</strong> and select the folder.</li>
-                </ol>
-              </div>
-            </div>
 
             <button
               type="button"
               onClick={onClose}
-              className="mt-4 text-xs text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 underline"
+              className="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-zinc-950 bg-sky-400 hover:bg-sky-300 dark:bg-sky-500 dark:hover:bg-sky-400 transition-all flex items-center justify-center gap-2 shadow-sm"
             >
-              Done / Close Window
+              <Sparkles className="w-4 h-4" />
+              <span>View Unlocked Accounts Table</span>
             </button>
           </div>
         )}

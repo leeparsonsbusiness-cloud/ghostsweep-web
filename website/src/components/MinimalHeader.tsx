@@ -1,17 +1,23 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Image from "next/image";
-import { Sun, Moon, Chrome } from "lucide-react";
+import { Sun, Moon, User, Lock, Sparkles } from "lucide-react";
 
 interface MinimalHeaderProps {
-  onOpenCheckout: () => void;
+  onOpenCheckout?: () => void;
+  onOpenAuth?: () => void;
+  userEmail?: string | null;
+  unlockedCount?: number;
   isDark: boolean;
   onToggleTheme: () => void;
 }
 
 export const MinimalHeader: React.FC<MinimalHeaderProps> = ({
   onOpenCheckout,
+  onOpenAuth,
+  userEmail,
+  unlockedCount = 0,
   isDark,
   onToggleTheme,
 }) => {
@@ -35,8 +41,8 @@ export const MinimalHeader: React.FC<MinimalHeaderProps> = ({
           </span>
         </a>
 
-        {/* Right: Theme toggle & Clean extension link */}
-        <div className="flex items-center gap-3 sm:gap-4">
+        {/* Right: Theme toggle & Sign In / My Audits link */}
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <button
             onClick={onToggleTheme}
             aria-label="Toggle theme"
@@ -45,14 +51,23 @@ export const MinimalHeader: React.FC<MinimalHeaderProps> = ({
             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
 
+          {/* Subtle Sign In / My Audits Member Button */}
           <button
-            id="navbar-cta-btn"
-            onClick={onOpenCheckout}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-zinc-900 dark:text-zinc-100 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700/80 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            id="navbar-auth-btn"
+            onClick={onOpenAuth}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-zinc-800 dark:text-zinc-200 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700/80 transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
-            <Chrome className="w-3.5 h-3.5 text-sky-500" />
-            <span>Chrome Extension</span>
-            <span className="text-sky-600 dark:text-sky-400 font-bold ml-0.5">$1.99</span>
+            <User className="w-3.5 h-3.5 text-sky-500" />
+            {userEmail ? (
+              <span className="truncate max-w-[120px]">{userEmail}</span>
+            ) : (
+              <span>Sign In / My Audits</span>
+            )}
+            {unlockedCount > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400 font-bold border border-sky-300 dark:border-sky-800">
+                {unlockedCount}
+              </span>
+            )}
           </button>
         </div>
       </div>

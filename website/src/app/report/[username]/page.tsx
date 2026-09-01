@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
 import { MinimalHeader } from "@/components/MinimalHeader";
 import { MinimalHero, AuditTabType } from "@/components/MinimalHero";
 import { MinimalResultsCard } from "@/components/MinimalResultsCard";
@@ -10,7 +11,11 @@ import { AuthModal } from "@/components/AuthModal";
 import { LegalModal, LegalModalType } from "@/components/LegalModal";
 import { AuditResult } from "@/app/api/audit/route";
 
-export default function Home() {
+export default function ReportPage() {
+  const params = useParams();
+  const rawParamUser = Array.isArray(params?.username) ? params.username[0] : params?.username;
+  const targetUser = typeof rawParamUser === "string" ? decodeURIComponent(rawParamUser).replace(/^@/, "").toLowerCase() : "alex.creator";
+
   const [isDark, setIsDark] = useState(true);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -20,15 +25,14 @@ export default function Home() {
   const [auditData, setAuditData] = useState<AuditResult | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [unlockedAudits, setUnlockedAudits] = useState<string[]>([]);
-  const [currentUsername, setCurrentUsername] = useState<string>("alex.creator");
+  const [currentUsername, setCurrentUsername] = useState<string>(targetUser);
 
-  // Initialize theme from localStorage or system preference
   useEffect(() => {
     const savedTheme = localStorage.getItem("ghostsweep-theme");
     if (savedTheme) {
       setIsDark(savedTheme === "dark");
     } else {
-      setIsDark(true); // Default to dark mode
+      setIsDark(true);
     }
   }, []);
 
@@ -42,14 +46,11 @@ export default function Home() {
     }
   }, [isDark]);
 
-  // Check user session & URL parameters on load
   useEffect(() => {
-    const loadSessionAndParams = async () => {
+    const loadSessionAndAudit = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const unlockedParam = urlParams.get("unlocked");
-      const usernameParam = urlParams.get("username");
       const emailParam = urlParams.get("email");
-      const authTokenParam = urlParams.get("auth_token");
 
       if (emailParam) {
         setUserEmail(emailParam);
@@ -59,54 +60,29 @@ export default function Home() {
         if (savedEmail) setUserEmail(savedEmail);
       }
 
-      // If returning from magic token
-      if (authTokenParam) {
+      const activeEmail = emailParam || localStorage.getItem("gs_user_email");
+      if (activeEmail) {
         try {
-          const res = await fetch("/api/auth/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token: authTokenParam }),
-          });
+          const res = await fetch(`/api/user/audits?email=${encodeURIComponent(activeEmail)}`);
           const json = await res.json();
-          if (json.success && json.email) {
-            setUserEmail(json.email);
-            setUnlockedAudits(json.unlockedAudits || []);
-            localStorage.setItem("gs_user_email", json.email);
+          if (json.success && Array.isArray(json.unlockedAudits)) {
+            setUnlockedAudits(json.unlockedAudits);
           }
         } catch (err) {
-          console.error("Auth token verification error:", err);
-        }
-      } else {
-        // Load user's unlocked audits
-        const emailToQuery = emailParam || localStorage.getItem("gs_user_email");
-        if (emailToQuery) {
-          try {
-            const res = await fetch(`/api/user/audits?email=${encodeURIComponent(emailToQuery)}`);
-            const json = await res.json();
-            if (json.success && Array.isArray(json.unlockedAudits)) {
-              setUnlockedAudits(json.unlockedAudits);
-            }
-          } catch (err) {
-            console.error("Failed to load user audits:", err);
-          }
+          console.error("Failed to load user audits:", err);
         }
       }
 
-      // If returning from payment unlock
-      if (unlockedParam === "true" && usernameParam) {
-        const cleanTarget = usernameParam.replace(/^@/, "").toLowerCase();
-        setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
-        handleAuditSubmit(cleanTarget);
-      } else {
-        // Perform initial default audit on load for instant preview
-        handleAuditSubmit("alex.creator");
+      if (unlockedParam === "true") {
+        setUnlockedAudits((prev) => Array.from(new Set([...prev, targetUser])));
       }
+
+      handleAuditSubmit(targetUser);
     };
 
-    loadSessionAndParams();
-  }, []);
+    loadSessionAndAudit();
+  }, [targetUser]);
 
-  // Handle live audit fetch via POST
   const handleAuditSubmit = async (username: string) => {
     const cleanUser = username.trim().replace(/^@/, "").toLowerCase();
     if (!cleanUser) return;
@@ -118,9 +94,7 @@ export default function Home() {
       const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("gs_user_email") : null);
       const res = await fetch("/api/audit", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           username: cleanUser,
           email: activeEmail || undefined 
@@ -137,25 +111,11 @@ export default function Home() {
     }
   };
 
-  const handleToggleTheme = () => {
-    setIsDark((prev) => !prev);
-  };
-
-  const handleOpenCheckout = () => {
-    setIsCheckoutOpen(true);
-  };
-
-  const handleCloseCheckout = () => {
-    setIsCheckoutOpen(false);
-  };
-
-  const handleOpenAuth = () => {
-    setIsAuthOpen(true);
-  };
-
-  const handleCloseAuth = () => {
-    setIsAuthOpen(false);
-  };
+  const handleToggleTheme = () => setIsDark((prev) => !prev);
+  const handleOpenCheckout = () => setIsCheckoutOpen(true);
+  const handleCloseCheckout = () => setIsCheckoutOpen(false);
+  const handleOpenAuth = () => setIsAuthOpen(true);
+  const handleCloseAuth = () => setIsAuthOpen(false);
 
   const handleLoginSuccess = (email: string, audits: string[]) => {
     setUserEmail(email);
@@ -176,65 +136,50 @@ export default function Home() {
     }
   };
 
-  const handleOpenLegal = (type: "terms" | "privacy" | "refund" | "contact") => {
-    setLegalModalType(type);
-  };
-
-  const handleCloseLegal = () => {
-    setLegalModalType(null);
-  };
-
-  // Check if current target username is unlocked
-  const isCurrentTargetUnlocked = Boolean(
+  const isCurrentAuditUnlocked = Boolean(
     auditData?.isUnlocked || 
     (currentUsername && unlockedAudits.includes(currentUsername.toLowerCase()))
   );
 
   return (
-    <div className="min-h-screen bg-[#fafaf9] dark:bg-[#09090b] text-zinc-900 dark:text-zinc-100 flex flex-col font-sans transition-colors duration-200">
-      {/* 1. Ultra-Minimal Top Bar */}
-      <MinimalHeader
-        onOpenCheckout={handleOpenCheckout}
+    <main className="min-h-screen bg-[#fafafa] dark:bg-[#09090b] text-zinc-900 dark:text-zinc-100 flex flex-col transition-colors duration-200 selection:bg-sky-500 selection:text-white">
+      <MinimalHeader 
+        isDark={isDark} 
+        onToggleTheme={handleToggleTheme}
         onOpenAuth={handleOpenAuth}
         userEmail={userEmail}
         unlockedCount={unlockedAudits.length}
-        isDark={isDark}
-        onToggleTheme={handleToggleTheme}
       />
 
-      {/* 2. Hero & Central Search Bar */}
-      <main className="flex-1 flex flex-col justify-start">
-        <MinimalHero
-          onAuditSubmit={handleAuditSubmit}
+      <div className="flex-1">
+        <MinimalHero 
+          onAuditSubmit={handleAuditSubmit} 
           isLoading={isLoading}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onOpenCheckout={handleOpenCheckout}
         />
 
-        {/* 3. Dynamic Minimalist Results Card with 3 Core Metrics & Clean Up CTA */}
         {auditData && (
-          <MinimalResultsCard
+          <MinimalResultsCard 
             auditData={auditData}
             activeTab={activeTab}
             onSelectTab={setActiveTab}
             onOpenCheckout={handleOpenCheckout}
-            isUnlocked={isCurrentTargetUnlocked}
+            isUnlocked={isCurrentAuditUnlocked}
           />
         )}
-      </main>
+      </div>
 
-      {/* 4. Ultra-Minimalist Stripe-Compliant Footer */}
-      <MinimalFooter onOpenLegal={handleOpenLegal} />
+      <MinimalFooter onOpenLegal={(type) => setLegalModalType(type)} />
 
-      {/* Modals */}
       <CheckoutModal
         isOpen={isCheckoutOpen}
         onClose={handleCloseCheckout}
-        targetUsername={currentUsername}
+        targetUsername={currentUsername || "alex.creator"}
         userEmail={userEmail || ""}
         onSuccessUnlock={handleSuccessUnlock}
-        onOpenLegal={handleOpenLegal}
+        onOpenLegal={(type) => setLegalModalType(type)}
       />
 
       <AuthModal
@@ -242,16 +187,17 @@ export default function Home() {
         onClose={handleCloseAuth}
         userEmail={userEmail}
         unlockedAudits={unlockedAudits}
-        onSelectUnlockedAccount={(handle) => {
-          handleAuditSubmit(handle);
+        onSelectUnlockedAccount={(username) => {
+          handleAuditSubmit(username);
+          handleCloseAuth();
         }}
         onLoginSuccess={handleLoginSuccess}
       />
 
       <LegalModal
         type={legalModalType}
-        onClose={handleCloseLegal}
+        onClose={() => setLegalModalType(null)}
       />
-    </div>
+    </main>
   );
 }
