@@ -112,13 +112,13 @@ function cleanHandle(raw: string): string {
 }
 
 /**
- * Execute Apify Instagram Scraper with NO mock fallback
+ * Execute Apify Instagram Scraper with full profile URLs and safe array unwrapping
  */
 async function scrapeInstagramWithApify(
   cleanUser: string,
   targetType: TargetType = "following",
   isPaid: boolean = false
-): Promise<{ items: any[]; targetType: TargetType }> {
+): Promise<{ follows: any[]; targetType: TargetType }> {
   const token = process.env.APIFY_API_TOKEN;
   if (!token) {
     console.error("CRITICAL: APIFY_API_TOKEN is not defined in process.env");
@@ -132,13 +132,22 @@ async function scrapeInstagramWithApify(
   const actorId = process.env.APIFY_ACTOR_ID || "scraping_solutions/instagram-scraper-followers-following-no-cookies";
   const limit = isPaid ? 500 : 25;
   const dataToScrape = targetType === "followers" ? "Followers" : "Followings";
+  const profileUrl = `https://www.instagram.com/${cleanUser}/`;
 
-  console.log(`[Apify Scraper] Starting live run for @${cleanUser} (${dataToScrape}, limit: ${limit})...`);
-
-  const run = await client.actor(actorId).call({
+  const input = {
     Account: [cleanUser],
+    usernames: [cleanUser],
+    startUrls: [{ url: profileUrl }],
+    directUrls: [profileUrl],
     dataToScrape: dataToScrape,
     resultsLimit: limit,
+    limit: limit,
+  };
+
+  console.log("Calling Apify with payload:", JSON.stringify(input));
+
+  const run = await client.actor(actorId).call(input, {
+    waitSecs: 60,
   });
 
   if (!run || !run.defaultDatasetId) {
@@ -147,14 +156,25 @@ async function scrapeInstagramWithApify(
 
   const dataset = await client.dataset(run.defaultDatasetId).listItems();
   const items = dataset.items || [];
+  console.log("Dataset items returned count:", items.length);
 
-  console.log(`[Apify Scraper] Successfully retrieved ${items.length} items for @${cleanUser}`);
-
-  if (!items || items.length === 0) {
-    throw new Error(`No ${targetType} were returned by Instagram for @${cleanUser}. The account may be private or invalid.`);
+  // Safe array unwrapping for varying dataset structures
+  let follows = items;
+  if (items.length === 1 && Array.isArray((items[0] as any).following)) {
+    follows = (items[0] as any).following;
+  } else if (items.length === 1 && Array.isArray((items[0] as any).followers)) {
+    follows = (items[0] as any).followers;
+  } else if (items.length === 1 && Array.isArray((items[0] as any).data)) {
+    follows = (items[0] as any).data;
+  } else if (items.length === 1 && Array.isArray((items[0] as any).results)) {
+    follows = (items[0] as any).results;
   }
 
-  return { items, targetType };
+  if (!follows || follows.length === 0) {
+    throw new Error(`Account @${cleanUser} is private or has no public follows visible.`);
+  }
+
+  return { follows, targetType };
 }
 
 /**
@@ -162,12 +182,12 @@ async function scrapeInstagramWithApify(
  */
 function buildLiveAuditResult(
   cleanUsername: string,
-  items: any[],
+  follows: any[],
   targetType: TargetType,
   unlocked: boolean
 ): AuditResult {
   // Map raw Apify items into AccountForensicInput array
-  const rawAccounts: AccountForensicInput[] = items.map((item: any, idx: number) => {
+  const rawAccounts: AccountForensicInput[] = follows.map((item: any, idx: number) => {
     const rawPic = item.profilePicUrl || item.profile_pic_url || item.profilePicUrlHD || item.avatar || "";
     const proxiedAvatar = rawPic ? `/api/proxy-image?url=${encodeURIComponent(rawPic)}` : "";
     const uname = (item.username || item.handle || `user_${idx + 1}`).replace(/^@/, "").trim();
@@ -333,8 +353,8 @@ export async function POST(req: NextRequest) {
     const unlocked = isAuditUnlocked(userEmail, cleanUsername);
 
     // Call live Apify scraper - NO mock data fallback
-    const { items } = await scrapeInstagramWithApify(cleanUsername, targetType, unlocked);
-    const result = buildLiveAuditResult(cleanUsername, items, targetType, unlocked);
+    const { follows } = await scrapeInstagramWithApify(cleanUsername, targetType, unlocked);
+    const result = buildLiveAuditResult(cleanUsername, follows, targetType, unlocked);
 
     // Save to cache
     saveAuditCache(cleanUsername, targetType, result);
@@ -388,8 +408,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, data: cached });
     }
 
-    const { items } = await scrapeInstagramWithApify(cleanUsername, targetType, unlocked);
-    const result = buildLiveAuditResult(cleanUsername, items, targetType, unlocked);
+    const { follows } = await scrapeInstagramWithApify(cleanUsername, targetType, unlocked);
+    const result = buildLiveAuditResult(cleanUsername, follows, targetType, unlocked);
 
     saveAuditCache(cleanUsername, targetType, result);
 
