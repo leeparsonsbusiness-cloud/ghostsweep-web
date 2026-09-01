@@ -56,7 +56,7 @@ export const MinimalHero: React.FC<MinimalHeroProps> = ({
 
   return (
     <section className="pt-8 pb-4 sm:pt-12 sm:pb-6 max-w-4xl mx-auto px-4 sm:px-6 text-center">
-      {/* 1. Top Dating/Nightlife Forensic Badge */}
+      {/* 1. Top Forensic Badge */}
       <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] sm:text-xs font-bold tracking-wider uppercase text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800/80 mb-5 shadow-xs">
         <span>🕵️</span>
         <span>100% ANONYMOUS • NO INSTAGRAM LOGIN REQUIRED</span>
@@ -72,7 +72,7 @@ export const MinimalHero: React.FC<MinimalHeroProps> = ({
 
       {/* 3. High-Converting Subheadline */}
       <p className="text-xs sm:text-sm md:text-base text-zinc-600 dark:text-zinc-300 max-w-xl mx-auto leading-relaxed mb-6 font-medium">
-        Audit any public Instagram profile. See who they followed at the club, recent followers, and filter immediately by Guys vs. Girls.
+        Follower count went up? Check who it was 👀
       </p>
 
       {/* 4. Search Bar */}
@@ -158,7 +158,7 @@ export const MinimalHero: React.FC<MinimalHeroProps> = ({
         <span className="text-zinc-300 dark:text-zinc-700">•</span>
         <span className="flex items-center gap-1.5">
           <Lock className="w-3.5 h-3.5 text-sky-400" />
-          <span>Target is Never Notified</span>
+          <span>User is Never Notified</span>
         </span>
       </div>
     </section>

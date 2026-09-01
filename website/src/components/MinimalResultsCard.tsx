@@ -53,7 +53,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
     }
     if (score >= 50) {
       return {
-        label: "HIGH NIGHTLIFE RATIO",
+        label: "HIGH ACTIVITY RATIO",
         textColor: "text-amber-600 dark:text-amber-400",
         bgColor: "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60",
       };
@@ -78,7 +78,6 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
   const maleCount = currentMetrics?.demographics?.maleCount ?? Math.round(((currentMetrics?.totalCount || 1000) * malePct) / 100);
   const femaleCount = currentMetrics?.demographics?.femaleCount ?? Math.round(((currentMetrics?.totalCount || 1000) * femalePct) / 100);
   const totalCount = currentMetrics?.totalCount || (selectedTargetType === "followers" ? auditData.followers : auditData.following);
-  const recentActivityIndex = auditData.activitySummary?.recentActivityIndex || "Active ~2h ago - Last Night";
 
   // Base pool of accounts
   const allAccounts: ClassifiedAccount[] = currentMetrics?.allAccounts || currentMetrics?.sampleAccounts || [];
@@ -185,8 +184,8 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
           </div>
         </div>
 
-        {/* 2. Top Metric Bar: Forensic Activity Summary */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 py-4 border-b border-zinc-100 dark:border-zinc-800/80">
+        {/* 2. Top Metric Bar: Forensic Activity Summary (Girls Followed & Guys Followed) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 py-4 border-b border-zinc-100 dark:border-zinc-800/80">
           {/* Girls Followed */}
           <div className="p-3 rounded-xl bg-pink-50/50 dark:bg-pink-950/20 border border-pink-200/60 dark:border-pink-900/40 text-left">
             <div className="flex items-center justify-between text-xs text-pink-600 dark:text-pink-400 font-semibold mb-1">
@@ -216,20 +215,6 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
             </div>
             <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
               Male accounts &amp; creators
-            </p>
-          </div>
-
-          {/* Recent Activity Index */}
-          <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 text-left">
-            <div className="flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-300 font-semibold mb-1">
-              <span>🕒 Activity Index</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            </div>
-            <div className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-400 truncate mt-1">
-              {recentActivityIndex}
-            </div>
-            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-              Chronological live index
             </p>
           </div>
         </div>
@@ -356,7 +341,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                         </div>
                       </div>
 
-                      {/* Badges: [ 👩 Girl ] / [ 👨 Guy ] + [ 🕒 Relative Timestamp ] + [ 🚫 Doesn't Follow Back / 🔄 Mutual ] */}
+                      {/* Badges: [ 👩 Girl ] / [ 👨 Guy ] + [ 🚫 Doesn't Follow Back / 🔄 Mutual ] (Timestamps only on paid) */}
                       <div className="flex flex-wrap items-center gap-1 sm:justify-end">
                         {/* Gender Tag */}
                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
@@ -365,12 +350,6 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                             : "bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800/60"
                         }`}>
                           {acc.genderLabel || (acc.gender === "female" ? "👩 Girl" : "👨 Guy")}
-                        </span>
-
-                        {/* Relative Timestamp */}
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
-                          <Clock className="w-2.5 h-2.5 text-sky-400" />
-                          <span>{acc.timestampLabel || `🕒 ~${(index + 1) * 2}h ago`}</span>
                         </span>
 
                         {/* Reciprocity Tag */}
@@ -384,30 +363,6 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                       </div>
                     </div>
                   ))}
-                </div>
-
-                {/* The $1.99 Curated Paywall Drawer */}
-                <div className="relative rounded-2xl overflow-hidden border border-zinc-300 dark:border-zinc-700/80 bg-zinc-100/90 dark:bg-zinc-800/60 p-6 text-center backdrop-blur-md shadow-md mt-4">
-                  <div className="flex flex-col items-center justify-center space-y-2.5">
-                    <div className="w-10 h-10 rounded-full bg-zinc-900 dark:bg-sky-500/20 flex items-center justify-center text-white dark:text-sky-400 shadow-sm">
-                      <Lock className="w-5 h-5 text-sky-400" />
-                    </div>
-                    <div className="text-sm sm:text-base font-black text-zinc-900 dark:text-white">
-                      🔒 Unlock all {totalCount.toLocaleString()} recent follows in exact chronological order
-                    </div>
-                    <p className="text-xs text-zinc-600 dark:text-zinc-300 max-w-md">
-                      Filter every single follow by Girls/Guys with exact timestamps, mutual verification tags, and full CSV export.
-                    </p>
-
-                    <button
-                      type="button"
-                      id="unlock-list-cta-btn"
-                      onClick={onOpenCheckout}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-black text-xs sm:text-sm text-zinc-950 bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg mt-2 cursor-pointer"
-                    >
-                      <span>Unlock Full Activity History ($1.99) ➔</span>
-                    </button>
-                  </div>
                 </div>
               </>
             ) : (
@@ -512,14 +467,15 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
       {!isUnlocked && (
         <div className="rounded-2xl bg-gradient-to-br from-zinc-900 to-black border border-zinc-800 p-6 text-center text-white shadow-xl">
           <h3 className="text-base sm:text-lg font-black mb-2 flex items-center justify-center gap-2">
-            <span>🔍 Track Anyone&apos;s Real Nightlife Activity</span>
+            <span>🔍 Track Anyone&apos;s Real Activity</span>
           </h3>
           <p className="text-xs text-zinc-400 max-w-lg mx-auto mb-4">
-            GhostSweep inspects exact chronological following order, timestamp intervals, and gender distribution without logging into Instagram or notifying the target.
+            GhostSweep inspects exact chronological following order, timestamp intervals, and gender distribution without logging into Instagram or notifying the user.
           </p>
 
           <button
             type="button"
+            id="unlock-list-cta-btn"
             onClick={onOpenCheckout}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-black text-xs sm:text-sm text-zinc-950 bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-400 shadow-md transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
           >
