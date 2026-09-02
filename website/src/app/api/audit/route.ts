@@ -11,7 +11,9 @@ import {
   getAuditCache, 
   saveAuditCache, 
   isAuditUnlocked, 
-  normalizeTargetUsername 
+  normalizeTargetUsername,
+  getUserPlanAndUsage,
+  recordUserSearch
 } from "@/lib/db";
 
 export const maxDuration = 60;
@@ -352,12 +354,49 @@ export async function POST(req: NextRequest) {
 
     const unlocked = isAuditUnlocked(userEmail, cleanUsername);
 
+    // Enforce Plan & Search Limits
+    if (userEmail) {
+      const usage = getUserPlanAndUsage(userEmail);
+      if (!usage.canSearchTarget(cleanUsername)) {
+        if (usage.plan === "standard") {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "MONTHLY_LIMIT_REACHED",
+              details: "You have reached your 10 monthly account audits limit on the Standard Plan. Upgrade to Unlimited for $9.99/month.",
+              limitReached: true,
+              plan: "standard",
+              searchesUsed: usage.searchesUsed,
+              limit: 10,
+            },
+            { status: 403 }
+          );
+        } else if (usage.plan === "free") {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "FREE_LIMIT_REACHED",
+              details: "You have reached your 5 free searches limit. Unlock full access for $3.99/month.",
+              limitReached: true,
+              plan: "free",
+              searchesUsed: usage.searchesUsed,
+              limit: 5,
+            },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
     // Call live Apify scraper - NO mock data fallback
     const { follows } = await scrapeInstagramWithApify(cleanUsername, targetType, unlocked);
     const result = buildLiveAuditResult(cleanUsername, follows, targetType, unlocked);
 
-    // Save to cache
+    // Save to cache & record search usage
     saveAuditCache(cleanUsername, targetType, result);
+    if (userEmail) {
+      recordUserSearch(userEmail, cleanUsername);
+    }
 
     return NextResponse.json({ success: true, data: result });
   } catch (error: any) {
@@ -408,10 +447,34 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, data: cached });
     }
 
+    // Enforce Plan & Search Limits
+    if (userEmail) {
+      const usage = getUserPlanAndUsage(userEmail);
+      if (!usage.canSearchTarget(cleanUsername)) {
+        if (usage.plan === "standard") {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "MONTHLY_LIMIT_REACHED",
+              details: "You have reached your 10 monthly account audits limit on the Standard Plan. Upgrade to Unlimited for $9.99/month.",
+              limitReached: true,
+              plan: "standard",
+              searchesUsed: usage.searchesUsed,
+              limit: 10,
+            },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
     const { follows } = await scrapeInstagramWithApify(cleanUsername, targetType, unlocked);
     const result = buildLiveAuditResult(cleanUsername, follows, targetType, unlocked);
 
     saveAuditCache(cleanUsername, targetType, result);
+    if (userEmail) {
+      recordUserSearch(userEmail, cleanUsername);
+    }
 
     return NextResponse.json({ success: true, data: result });
   } catch (error: any) {

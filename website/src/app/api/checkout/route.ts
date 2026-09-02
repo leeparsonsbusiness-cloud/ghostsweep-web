@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { unlockAudit, getOrCreateUser, normalizeTargetUsername } from "@/lib/db";
+import { unlockAudit, getOrCreateUser, normalizeTargetUsername, setUserPlan } from "@/lib/db";
 
 export interface CheckoutRequest {
   email: string;
-  target_username: string;
+  target_username?: string;
+  plan?: "standard" | "unlimited";
   type?: "following" | "followers";
 }
 
@@ -12,9 +13,15 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as CheckoutRequest;
     const email = body.email ? body.email.trim().toLowerCase() : "";
-    const rawTarget = body.target_username || "alex.creator";
+    const rawTarget = body.target_username || "theleeparsons";
     const targetUsername = normalizeTargetUsername(rawTarget);
-    const auditType = body.type || "following";
+    const plan = body.plan === "unlimited" ? "unlimited" : "standard";
+    const isUnlimited = plan === "unlimited";
+    const amount = isUnlimited ? 999 : 399; // $9.99 or $3.99
+    const planName = isUnlimited ? "GhostSweep Unlimited Plan" : "GhostSweep Standard Plan";
+    const planDesc = isUnlimited
+      ? "Unlimited monthly Instagram forensic account searches & deep intelligence reports."
+      : "Monthly Instagram forensic account audits & deep intelligence reports.";
 
     if (!email || !email.includes("@")) {
       return NextResponse.json(
@@ -23,13 +30,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Ensure user exists in SQLite DB
     const user = getOrCreateUser(email);
-
-    const origin = req.nextUrl.origin || req.headers.get("origin") || req.headers.get("referer") || "http://localhost:3000";
+    const origin = req.nextUrl.origin || req.headers.get("origin") || req.headers.get("referer") || "https://ghostsweep.info";
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
-    // If live Stripe Secret Key is present, initialize Stripe Checkout Session
+    // Live Stripe Checkout Session
     if (stripeSecretKey && stripeSecretKey.startsWith("sk_")) {
       const stripe = new Stripe(stripeSecretKey, {
         apiVersion: "2026-08-26.dahlia" as any,
@@ -42,24 +47,27 @@ export async function POST(req: NextRequest) {
             price_data: {
               currency: "usd",
               product_data: {
-                name: `GhostSweep Intelligence Audit: @${targetUsername}`,
-                description: `Full forensic chronological audit list & demographic intelligence report for @${targetUsername}.`,
+                name: planName,
+                description: planDesc,
                 images: ["https://ghostsweep.info/og-image.png"],
               },
-              unit_amount: 199, // $1.99
+              unit_amount: amount,
+              recurring: {
+                interval: "month",
+              },
             },
             quantity: 1,
           },
         ],
-        mode: "payment",
+        mode: "subscription",
         customer_email: email,
         metadata: {
           user_id: user.id,
           email: email,
+          plan: plan,
           target_username: targetUsername,
-          type: auditType,
         },
-        success_url: `${origin}/?unlocked=true&username=${encodeURIComponent(targetUsername)}&email=${encodeURIComponent(email)}`,
+        success_url: `${origin}/?unlocked=true&username=${encodeURIComponent(targetUsername)}&email=${encodeURIComponent(email)}&plan=${plan}`,
         cancel_url: `${origin}/?cancelled=true&username=${encodeURIComponent(targetUsername)}`,
       });
 
@@ -70,16 +78,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Fallback Sandbox / Dev Mode (Instant $1.99 unlock execution without requiring live Stripe keys)
+    // Fallback sandbox / dev unlock
+    setUserPlan(email, plan);
     unlockAudit(email, targetUsername);
 
     return NextResponse.json({
       success: true,
       unlocked: true,
       email,
+      plan,
       target_username: targetUsername,
-      message: "Report unlocked successfully.",
-      redirectUrl: `/?unlocked=true&username=${encodeURIComponent(targetUsername)}&email=${encodeURIComponent(email)}`,
+      message: `${planName} activated successfully.`,
+      redirectUrl: `/?unlocked=true&username=${encodeURIComponent(targetUsername)}&email=${encodeURIComponent(email)}&plan=${plan}`,
     });
   } catch (error: any) {
     console.error("Checkout API error:", error);

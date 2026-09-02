@@ -7,6 +7,7 @@ import { MinimalHero, AuditTabType } from "@/components/MinimalHero";
 import { MinimalResultsCard } from "@/components/MinimalResultsCard";
 import { MinimalFooter } from "@/components/MinimalFooter";
 import { CheckoutModal } from "@/components/CheckoutModal";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import { AuthModal } from "@/components/AuthModal";
 import { LegalModal, LegalModalType } from "@/components/LegalModal";
 import { AuditResult } from "@/app/api/audit/route";
@@ -14,10 +15,11 @@ import { AuditResult } from "@/app/api/audit/route";
 export default function ReportPage() {
   const params = useParams();
   const rawParamUser = Array.isArray(params?.username) ? params.username[0] : params?.username;
-  const targetUser = typeof rawParamUser === "string" ? decodeURIComponent(rawParamUser).replace(/^@/, "").toLowerCase() : "alex.creator";
+  const targetUser = typeof rawParamUser === "string" ? decodeURIComponent(rawParamUser).replace(/^@/, "").toLowerCase() : "theleeparsons";
 
   const [isDark, setIsDark] = useState(true);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [legalModalType, setLegalModalType] = useState<LegalModalType>(null);
   const [activeTab, setActiveTab] = useState<AuditTabType>("non-reciprocals");
@@ -88,12 +90,21 @@ export default function ReportPage() {
     const cleanUser = username.trim().replace(/^@/, "").toLowerCase();
     if (!cleanUser) return;
 
+    // Check Guest search limit
+    const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("gs_user_email") : null);
+    if (!activeEmail) {
+      const guestSearches = JSON.parse(localStorage.getItem("gs_guest_searches") || "[]");
+      if (!guestSearches.includes(cleanUser) && guestSearches.length >= 5) {
+        setIsCheckoutOpen(true);
+        return;
+      }
+    }
+
     setCurrentUsername(cleanUser);
     setIsLoading(true);
     setAuditError(null);
 
     try {
-      const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("gs_user_email") : null);
       const res = await fetch("/api/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -105,8 +116,22 @@ export default function ReportPage() {
       const json = await res.json();
       if (json.success && json.data) {
         setAuditData(json.data);
+
+        if (!activeEmail) {
+          const guestSearches: string[] = JSON.parse(localStorage.getItem("gs_guest_searches") || "[]");
+          if (!guestSearches.includes(cleanUser)) {
+            guestSearches.push(cleanUser);
+            localStorage.setItem("gs_guest_searches", JSON.stringify(guestSearches));
+          }
+        }
       } else {
-        setAuditError(json.error || json.details || "Failed to audit account.");
+        if (json.error === "MONTHLY_LIMIT_REACHED") {
+          setIsUpgradeOpen(true);
+        } else if (json.error === "FREE_LIMIT_REACHED") {
+          setIsCheckoutOpen(true);
+        } else {
+          setAuditError(json.error || json.details || "Failed to audit account.");
+        }
       }
     } catch (err: any) {
       console.error("Failed to fetch audit data:", err);
@@ -149,25 +174,40 @@ export default function ReportPage() {
     }
   };
 
-  const isCurrentAuditUnlocked = Boolean(
+  const handleSuccessUpgrade = (email: string) => {
+    setUserEmail(email);
+    localStorage.setItem("gs_user_email", email);
+    if (currentUsername) {
+      handleAuditSubmit(currentUsername);
+    }
+  };
+
+  const handleOpenLegal = (type: "terms" | "privacy" | "refund" | "contact") => {
+    setLegalModalType(type);
+  };
+
+  const handleCloseLegal = () => setLegalModalType(null);
+
+  const isCurrentTargetUnlocked = Boolean(
     auditData?.isUnlocked || 
     (currentUsername && unlockedAudits.includes(currentUsername.toLowerCase()))
   );
 
   return (
-    <main className="min-h-screen bg-[#fafafa] dark:bg-[#09090b] text-zinc-900 dark:text-zinc-100 flex flex-col transition-colors duration-200 selection:bg-sky-500 selection:text-white">
-      <MinimalHeader 
-        isDark={isDark} 
-        onToggleTheme={handleToggleTheme}
+    <div className="min-h-screen bg-[#fafaf9] dark:bg-[#09090b] text-zinc-900 dark:text-zinc-100 flex flex-col font-sans transition-colors duration-200">
+      <MinimalHeader
+        onOpenCheckout={handleOpenCheckout}
         onOpenAuth={handleOpenAuth}
         onSignOut={handleSignOut}
         userEmail={userEmail}
         unlockedCount={unlockedAudits.length}
+        isDark={isDark}
+        onToggleTheme={handleToggleTheme}
       />
 
-      <div className="flex-1">
-        <MinimalHero 
-          onAuditSubmit={handleAuditSubmit} 
+      <main className="flex-1 flex flex-col justify-start">
+        <MinimalHero
+          onAuditSubmit={handleAuditSubmit}
           isLoading={isLoading}
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -184,25 +224,34 @@ export default function ReportPage() {
         )}
 
         {auditData && (
-          <MinimalResultsCard 
+          <MinimalResultsCard
             auditData={auditData}
             activeTab={activeTab}
             onSelectTab={setActiveTab}
             onOpenCheckout={handleOpenCheckout}
-            isUnlocked={isCurrentAuditUnlocked}
+            isUnlocked={isCurrentTargetUnlocked}
           />
         )}
-      </div>
+      </main>
 
-      <MinimalFooter onOpenLegal={(type) => setLegalModalType(type)} />
+      <MinimalFooter onOpenLegal={handleOpenLegal} />
 
       <CheckoutModal
         isOpen={isCheckoutOpen}
         onClose={handleCloseCheckout}
-        targetUsername={currentUsername || "alex.creator"}
+        targetUsername={currentUsername}
         userEmail={userEmail || ""}
         onSuccessUnlock={handleSuccessUnlock}
-        onOpenLegal={(type) => setLegalModalType(type)}
+        onOpenLegal={handleOpenLegal}
+      />
+
+      <UpgradeModal
+        isOpen={isUpgradeOpen}
+        onClose={() => setIsUpgradeOpen(false)}
+        userEmail={userEmail || ""}
+        targetUsername={currentUsername}
+        onSuccessUpgrade={handleSuccessUpgrade}
+        onOpenLegal={handleOpenLegal}
       />
 
       <AuthModal
@@ -210,17 +259,16 @@ export default function ReportPage() {
         onClose={handleCloseAuth}
         userEmail={userEmail}
         unlockedAudits={unlockedAudits}
-        onSelectUnlockedAccount={(username) => {
-          handleAuditSubmit(username);
-          handleCloseAuth();
+        onSelectUnlockedAccount={(handle) => {
+          handleAuditSubmit(handle);
         }}
         onLoginSuccess={handleLoginSuccess}
       />
 
       <LegalModal
         type={legalModalType}
-        onClose={() => setLegalModalType(null)}
+        onClose={handleCloseLegal}
       />
-    </main>
+    </div>
   );
 }

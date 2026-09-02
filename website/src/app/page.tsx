@@ -6,6 +6,7 @@ import { MinimalHero, AuditTabType } from "@/components/MinimalHero";
 import { MinimalResultsCard } from "@/components/MinimalResultsCard";
 import { MinimalFooter } from "@/components/MinimalFooter";
 import { CheckoutModal } from "@/components/CheckoutModal";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import { AuthModal } from "@/components/AuthModal";
 import { LegalModal, LegalModalType } from "@/components/LegalModal";
 import { AuditResult } from "@/app/api/audit/route";
@@ -13,6 +14,7 @@ import { AuditResult } from "@/app/api/audit/route";
 export default function Home() {
   const [isDark, setIsDark] = useState(true);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [legalModalType, setLegalModalType] = useState<LegalModalType>(null);
   const [activeTab, setActiveTab] = useState<AuditTabType>("non-reciprocals");
@@ -111,12 +113,21 @@ export default function Home() {
     const cleanUser = username.trim().replace(/^@/, "").toLowerCase();
     if (!cleanUser) return;
 
+    // Check Guest search limit (5 searches max for free guests)
+    const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("gs_user_email") : null);
+    if (!activeEmail) {
+      const guestSearches = JSON.parse(localStorage.getItem("gs_guest_searches") || "[]");
+      if (!guestSearches.includes(cleanUser) && guestSearches.length >= 5) {
+        setIsCheckoutOpen(true);
+        return;
+      }
+    }
+
     setCurrentUsername(cleanUser);
     setIsLoading(true);
     setAuditError(null);
 
     try {
-      const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("gs_user_email") : null);
       const res = await fetch("/api/audit", {
         method: "POST",
         headers: {
@@ -128,10 +139,26 @@ export default function Home() {
         }),
       });
       const json = await res.json();
+
       if (json.success && json.data) {
         setAuditData(json.data);
+
+        // Record guest search in localStorage
+        if (!activeEmail) {
+          const guestSearches: string[] = JSON.parse(localStorage.getItem("gs_guest_searches") || "[]");
+          if (!guestSearches.includes(cleanUser)) {
+            guestSearches.push(cleanUser);
+            localStorage.setItem("gs_guest_searches", JSON.stringify(guestSearches));
+          }
+        }
       } else {
-        setAuditError(json.error || json.details || "Failed to audit account.");
+        if (json.error === "MONTHLY_LIMIT_REACHED") {
+          setIsUpgradeOpen(true);
+        } else if (json.error === "FREE_LIMIT_REACHED") {
+          setIsCheckoutOpen(true);
+        } else {
+          setAuditError(json.error || json.details || "Failed to audit account.");
+        }
       }
     } catch (err: any) {
       console.error("Failed to fetch audit data:", err);
@@ -188,6 +215,14 @@ export default function Home() {
     }
   };
 
+  const handleSuccessUpgrade = (email: string) => {
+    setUserEmail(email);
+    localStorage.setItem("gs_user_email", email);
+    if (currentUsername) {
+      handleAuditSubmit(currentUsername);
+    }
+  };
+
   const handleOpenLegal = (type: "terms" | "privacy" | "refund" | "contact") => {
     setLegalModalType(type);
   };
@@ -234,7 +269,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* 3. Dynamic Minimalist Results Card with 3 Core Metrics & Clean Up CTA */}
+        {/* 3. Dynamic Minimalist Results Card */}
         {auditData && (
           <MinimalResultsCard
             auditData={auditData}
@@ -256,6 +291,16 @@ export default function Home() {
         targetUsername={currentUsername}
         userEmail={userEmail || ""}
         onSuccessUnlock={handleSuccessUnlock}
+        onOpenLegal={handleOpenLegal}
+      />
+
+      {/* Upgrade to Unlimited Modal ($9.99/mo) - ONLY triggered after 10 accounts */}
+      <UpgradeModal
+        isOpen={isUpgradeOpen}
+        onClose={() => setIsUpgradeOpen(false)}
+        userEmail={userEmail || ""}
+        targetUsername={currentUsername}
+        onSuccessUpgrade={handleSuccessUpgrade}
         onOpenLegal={handleOpenLegal}
       />
 

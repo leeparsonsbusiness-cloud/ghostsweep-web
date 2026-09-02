@@ -2,11 +2,17 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 
+export type UserPlan = "free" | "standard" | "unlimited";
+
 export interface DbUser {
   id: string;
   email: string;
   password_hash?: string | null;
   stripe_customer_id?: string | null;
+  plan: UserPlan;
+  searches_this_month: number;
+  searched_accounts: string[];
+  search_month_reset: string;
   created_at: string;
 }
 
@@ -139,12 +145,17 @@ export function registerUser(
 
   const id = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const now = new Date().toISOString();
+  const resetDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const newUser: DbUser = {
     id,
     email: cleanEmail,
     password_hash: passwordHash,
     stripe_customer_id: null,
+    plan: "free",
+    searches_this_month: 0,
+    searched_accounts: [],
+    search_month_reset: resetDate,
     created_at: now,
   };
 
@@ -170,7 +181,7 @@ export function authenticateUser(
 
   const existing = memoryVault.users[cleanEmail];
   if (!existing) {
-    // If user does not exist yet, auto-register them
+    // Auto-register if not yet found
     return registerUser(cleanEmail, password);
   }
 
@@ -180,7 +191,6 @@ export function authenticateUser(
       return { success: false, error: "Incorrect password. Please try again." };
     }
   } else if (password && !existing.password_hash) {
-    // Set initial password for user who previously unlocked via checkout
     const passwordHash = hashPassword(password);
     existing.password_hash = passwordHash;
     persistVault();
@@ -207,11 +217,16 @@ export function getOrCreateUser(email: string, stripeCustomerId?: string): DbUse
 
   const id = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const now = new Date().toISOString();
+  const resetDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const newUser: DbUser = {
     id,
     email: cleanEmail,
     stripe_customer_id: stripeCustomerId || null,
+    plan: "free",
+    searches_this_month: 0,
+    searched_accounts: [],
+    search_month_reset: resetDate,
     created_at: now,
   };
 
@@ -220,6 +235,125 @@ export function getOrCreateUser(email: string, stripeCustomerId?: string): DbUse
   persistVault();
 
   return newUser;
+}
+
+/**
+ * Update user plan after successful payment/subscription
+ */
+export function setUserPlan(email: string, plan: UserPlan): DbUser {
+  const user = getOrCreateUser(email);
+  user.plan = plan;
+  persistVault();
+  return user;
+}
+
+/**
+ * Check user plan and usage status
+ */
+export function getUserPlanAndUsage(emailOrUserId: string | null | undefined): {
+  plan: UserPlan;
+  searchesUsed: number;
+  searchLimit: number;
+  isRestricted: boolean;
+  canSearchTarget: (target: string) => boolean;
+} {
+  if (!emailOrUserId) {
+    return {
+      plan: "free",
+      searchesUsed: 0,
+      searchLimit: 5,
+      isRestricted: false,
+      canSearchTarget: () => true,
+    };
+  }
+
+  loadVault();
+  let email = emailOrUserId.trim().toLowerCase();
+  if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
+    email = memoryVault.usersById[emailOrUserId];
+  }
+
+  const user = memoryVault.users[email];
+  if (!user) {
+    return {
+      plan: "free",
+      searchesUsed: 0,
+      searchLimit: 5,
+      isRestricted: false,
+      canSearchTarget: () => true,
+    };
+  }
+
+  // Monthly reset check
+  const now = new Date();
+  if (user.search_month_reset && new Date(user.search_month_reset).getTime() < now.getTime()) {
+    user.searches_this_month = 0;
+    user.searched_accounts = [];
+    user.search_month_reset = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    persistVault();
+  }
+
+  const searched = user.searched_accounts || [];
+  const plan = user.plan || "free";
+  const limit = plan === "unlimited" ? 999999 : plan === "standard" ? 10 : 5;
+
+  return {
+    plan,
+    searchesUsed: searched.length,
+    searchLimit: limit,
+    isRestricted: plan !== "unlimited" && searched.length >= limit,
+    canSearchTarget: (target: string) => {
+      const cleanTarget = normalizeTargetUsername(target);
+      if (plan === "unlimited") return true;
+      if (searched.includes(cleanTarget)) return true; // re-auditing already unlocked account is allowed
+      return searched.length < limit;
+    },
+  };
+}
+
+/**
+ * Record a search performed by a user
+ */
+export function recordUserSearch(emailOrUserId: string, targetUsername: string): {
+  allowed: boolean;
+  searchesUsed: number;
+  limit: number;
+  plan: UserPlan;
+} {
+  loadVault();
+  const cleanTarget = normalizeTargetUsername(targetUsername);
+  let email = emailOrUserId.trim().toLowerCase();
+  if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
+    email = memoryVault.usersById[emailOrUserId];
+  }
+
+  const user = getOrCreateUser(email);
+  if (!user.searched_accounts) user.searched_accounts = [];
+
+  const searched = user.searched_accounts;
+  const plan = user.plan || "free";
+  const limit = plan === "unlimited" ? 999999 : plan === "standard" ? 10 : 5;
+
+  if (!searched.includes(cleanTarget)) {
+    if (plan !== "unlimited" && searched.length >= limit) {
+      return {
+        allowed: false,
+        searchesUsed: searched.length,
+        limit,
+        plan,
+      };
+    }
+    searched.push(cleanTarget);
+    user.searches_this_month = searched.length;
+    persistVault();
+  }
+
+  return {
+    allowed: true,
+    searchesUsed: searched.length,
+    limit,
+    plan,
+  };
 }
 
 /**
@@ -237,14 +371,23 @@ export function unlockAudit(emailOrUserId: string, targetUsername: string): bool
 
   if (!email) return false;
 
-  // Ensure user is created
-  getOrCreateUser(email);
+  // Ensure user is created and assigned standard plan if free
+  const user = getOrCreateUser(email);
+  if (user.plan === "free") {
+    user.plan = "standard";
+  }
 
   if (!memoryVault.unlockedAudits[email]) {
     memoryVault.unlockedAudits[email] = {};
   }
 
   memoryVault.unlockedAudits[email][cleanTarget] = new Date().toISOString();
+  if (!user.searched_accounts) user.searched_accounts = [];
+  if (!user.searched_accounts.includes(cleanTarget)) {
+    user.searched_accounts.push(cleanTarget);
+    user.searches_this_month = user.searched_accounts.length;
+  }
+
   persistVault();
   return true;
 }

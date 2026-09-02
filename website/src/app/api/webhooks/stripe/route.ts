@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { unlockAudit, getOrCreateUser } from "@/lib/db";
+import { unlockAudit, getOrCreateUser, setUserPlan, UserPlan } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -27,14 +27,18 @@ export async function POST(req: NextRequest) {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       const metadata = session.metadata || {};
-      const targetUsername = metadata.target_username;
+      const targetUsername = metadata.target_username || "theleeparsons";
       const email = session.customer_details?.email || metadata.email;
       const customerId = typeof session.customer === "string" ? session.customer : undefined;
+      const plan: UserPlan = metadata.plan === "unlimited" ? "unlimited" : "standard";
 
-      if (email && targetUsername) {
+      if (email) {
         getOrCreateUser(email, customerId);
-        unlockAudit(email, targetUsername);
-        console.log(`[Stripe Webhook] Successfully unlocked audit for target: @${targetUsername}, user: ${email}`);
+        setUserPlan(email, plan);
+        if (targetUsername) {
+          unlockAudit(email, targetUsername);
+        }
+        console.log(`[Stripe Webhook] Successfully activated ${plan} plan for user ${email}, unlocked target: @${targetUsername}`);
       }
     }
 

@@ -124,15 +124,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             {/* Order Summary Box */}
             <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 mb-5">
               <div className="flex items-center justify-between text-xs pb-2.5 border-b border-zinc-200 dark:border-zinc-750">
-                <span className="text-zinc-600 dark:text-zinc-300 font-medium">Complete Chronological Follow History</span>
-                <span className="text-zinc-900 dark:text-white font-bold font-mono text-sm">$1.99</span>
+                <span className="text-zinc-600 dark:text-zinc-300 font-medium">GhostSweep Standard Plan</span>
+                <span className="text-zinc-900 dark:text-white font-bold font-mono text-sm">$3.99<span className="text-[10px] text-zinc-400 font-normal"> / mo</span></span>
               </div>
               <div className="flex items-center justify-between text-[11px] pt-2 text-zinc-500 dark:text-zinc-400">
                 <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   Instant Web Access
                 </span>
-                <span>One-Time Payment</span>
+                <span>Monthly Subscription</span>
               </div>
             </div>
 
@@ -189,7 +189,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </span>
                 ) : (
                   <>
-                    <span>Unlock Full Activity History ($1.99) ➔</span>
+                    <span>Unlock Full Activity History ($3.99/mo) ➔</span>
                   </>
                 )}
               </button>

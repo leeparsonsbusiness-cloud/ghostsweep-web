@@ -387,7 +387,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                       <Lock className="w-5 h-5 text-sky-400" />
                     </div>
                     <div className="text-sm sm:text-base font-black text-zinc-900 dark:text-white">
-                      Unlock full chronological follow history &amp; gender filters for $1.99
+                      Unlock full chronological follow history &amp; gender filters for $3.99/mo
                     </div>
                     <p className="text-xs text-zinc-600 dark:text-zinc-300 max-w-md">
                       See all {totalCount.toLocaleString()} follows from newest to oldest, filter every follow by Girls/Guys, and full CSV export.
@@ -399,7 +399,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                       onClick={onOpenCheckout}
                       className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-black text-xs sm:text-sm text-zinc-950 bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg mt-2 cursor-pointer"
                     >
-                      <span>Unlock Full Activity History ($1.99) ➔</span>
+                      <span>Unlock Full Activity History ($3.99/mo) ➔</span>
                     </button>
                   </div>
                 </div>
