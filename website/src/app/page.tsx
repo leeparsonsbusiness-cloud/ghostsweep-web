@@ -337,6 +337,7 @@ export default function Home() {
           handleAuditSubmit(handle);
         }}
         onLoginSuccess={handleLoginSuccess}
+        onSignOut={handleSignOut}
       />
 
       <LegalModal

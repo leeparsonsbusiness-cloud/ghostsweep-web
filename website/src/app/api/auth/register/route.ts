@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { registerUser, getUserUnlockedAudits } from "@/lib/db";
+import { registerUser, getUserUnlockedAudits, isBlockedEmail } from "@/lib/db";
 import { createSessionToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +14,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: "A valid email address is required." },
         { status: 400 }
+      );
+    }
+
+    if (isBlockedEmail(email)) {
+      return NextResponse.json(
+        { success: false, error: "Nah shorty.", blocked: true },
+        { status: 403 }
       );
     }
 
@@ -58,7 +65,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error("Register API error:", err);
     return NextResponse.json(
-      { success: false, error: err.message || "Failed to create account." },
+      { success: false, error: err.message || "Registration failed." },
       { status: 500 }
     );
   }

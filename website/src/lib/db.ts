@@ -2,7 +2,15 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 
-export type UserPlan = "free" | "standard" | "unlimited";
+export { 
+  VIP_ADMIN_EMAILS, 
+  BLOCKED_EMAILS, 
+  isVipEmail, 
+  isBlockedEmail, 
+  type UserPlan, 
+  type AuditHistoryEntry 
+} from "./types";
+import { isVipEmail, isBlockedEmail, UserPlan, AuditHistoryEntry } from "./types";
 
 export interface DbUser {
   id: string;
@@ -28,16 +36,6 @@ export interface DbMagicToken {
   email: string;
   expires_at: string;
   created_at: string;
-}
-
-export interface AuditHistoryEntry {
-  id: string;
-  username: string;
-  name: string;
-  avatar: string;
-  isUnlocked: boolean;
-  timestamp: string;
-  targetType: "following" | "followers";
 }
 
 export interface VaultState {
@@ -143,10 +141,16 @@ export function registerUser(
     return { success: false, error: "Please enter a valid email address." };
   }
 
+  if (isBlockedEmail(cleanEmail)) {
+    return { success: false, error: "Nah shorty." };
+  }
+
   const existing = memoryVault.users[cleanEmail];
   const passwordHash = password ? hashPassword(password) : null;
+  const isVip = isVipEmail(cleanEmail);
 
   if (existing) {
+    if (isVip) existing.plan = "unlimited";
     if (passwordHash && !existing.password_hash) {
       existing.password_hash = passwordHash;
       persistVault();
@@ -163,7 +167,7 @@ export function registerUser(
     email: cleanEmail,
     password_hash: passwordHash,
     stripe_customer_id: null,
-    plan: "free",
+    plan: isVip ? "unlimited" : "free",
     searches_this_month: 0,
     searched_accounts: [],
     search_month_reset: resetDate,
@@ -190,10 +194,17 @@ export function authenticateUser(
     return { success: false, error: "Please enter a valid email address." };
   }
 
+  if (isBlockedEmail(cleanEmail)) {
+    return { success: false, error: "Nah shorty." };
+  }
+
   const existing = memoryVault.users[cleanEmail];
   if (!existing) {
     return registerUser(cleanEmail, password);
   }
+
+  const isVip = isVipEmail(cleanEmail);
+  if (isVip) existing.plan = "unlimited";
 
   if (password && existing.password_hash) {
     const inputHash = hashPassword(password);
@@ -215,9 +226,11 @@ export function authenticateUser(
 export function getOrCreateUser(email: string, stripeCustomerId?: string): DbUser {
   loadVault();
   const cleanEmail = email.trim().toLowerCase();
+  const isVip = isVipEmail(cleanEmail);
 
   const existing = memoryVault.users[cleanEmail];
   if (existing) {
+    if (isVip) existing.plan = "unlimited";
     if (stripeCustomerId && !existing.stripe_customer_id) {
       existing.stripe_customer_id = stripeCustomerId;
       persistVault();
@@ -233,7 +246,7 @@ export function getOrCreateUser(email: string, stripeCustomerId?: string): DbUse
     id,
     email: cleanEmail,
     stripe_customer_id: stripeCustomerId || null,
-    plan: "free",
+    plan: isVip ? "unlimited" : "free",
     searches_this_month: 0,
     searched_accounts: [],
     search_month_reset: resetDate,
@@ -252,7 +265,11 @@ export function getOrCreateUser(email: string, stripeCustomerId?: string): DbUse
  */
 export function setUserPlan(email: string, plan: UserPlan): DbUser {
   const user = getOrCreateUser(email);
-  user.plan = plan;
+  if (isVipEmail(email)) {
+    user.plan = "unlimited";
+  } else {
+    user.plan = plan;
+  }
   persistVault();
   return user;
 }
@@ -281,6 +298,16 @@ export function getUserPlanAndUsage(emailOrUserId: string | null | undefined): {
   let email = emailOrUserId.trim().toLowerCase();
   if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
     email = memoryVault.usersById[emailOrUserId];
+  }
+
+  if (isVipEmail(email)) {
+    return {
+      plan: "unlimited",
+      searchesUsed: 0,
+      searchLimit: 999999,
+      isRestricted: false,
+      canSearchTarget: () => true,
+    };
   }
 
   const user = memoryVault.users[email];
@@ -335,6 +362,15 @@ export function recordUserSearch(emailOrUserId: string, targetUsername: string):
   let email = emailOrUserId.trim().toLowerCase();
   if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
     email = memoryVault.usersById[emailOrUserId];
+  }
+
+  if (isVipEmail(email)) {
+    return {
+      allowed: true,
+      searchesUsed: 0,
+      limit: 999999,
+      plan: "unlimited",
+    };
   }
 
   const user = getOrCreateUser(email);
@@ -418,6 +454,10 @@ export function isAuditUnlocked(
     email = memoryVault.usersById[emailOrUserId];
   }
 
+  if (isVipEmail(email)) {
+    return true; // VIP access unlocked for all profiles
+  }
+
   const userAudits = memoryVault.unlockedAudits[email];
   return Boolean(userAudits && userAudits[cleanTarget]);
 }
@@ -431,6 +471,10 @@ export function getUserUnlockedAudits(emailOrUserId: string): string[] {
   let email = emailOrUserId.trim().toLowerCase();
   if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
     email = memoryVault.usersById[emailOrUserId];
+  }
+
+  if (isVipEmail(email)) {
+    return ["* (VIP Unlimited Access)"];
   }
 
   const userAudits = memoryVault.unlockedAudits[email];
@@ -457,6 +501,8 @@ export function recordAuditHistory(
     email = memoryVault.usersById[emailOrUserId];
   }
 
+  if (!email) return;
+
   if (!memoryVault.auditHistory) memoryVault.auditHistory = {};
   if (!memoryVault.auditHistory[email]) memoryVault.auditHistory[email] = [];
 
@@ -464,7 +510,6 @@ export function recordAuditHistory(
   const isUnlocked = isAuditUnlocked(email, cleanTarget);
 
   const historyList = memoryVault.auditHistory[email];
-  // Remove duplicate if already in history, then prepend to top
   const filtered = historyList.filter((item) => item.username.toLowerCase() !== cleanTarget);
 
   filtered.unshift({
@@ -477,7 +522,6 @@ export function recordAuditHistory(
     targetType: entry.targetType || "following",
   });
 
-  // Keep last 50 history items
   memoryVault.auditHistory[email] = filtered.slice(0, 50);
   persistVault();
 }

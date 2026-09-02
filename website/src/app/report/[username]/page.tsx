@@ -288,6 +288,7 @@ export default function ReportPage() {
           handleAuditSubmit(handle);
         }}
         onLoginSuccess={handleLoginSuccess}
+        onSignOut={handleSignOut}
       />
 
       <LegalModal
