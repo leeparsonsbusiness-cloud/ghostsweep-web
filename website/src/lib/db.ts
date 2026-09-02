@@ -30,11 +30,22 @@ export interface DbMagicToken {
   created_at: string;
 }
 
+export interface AuditHistoryEntry {
+  id: string;
+  username: string;
+  name: string;
+  avatar: string;
+  isUnlocked: boolean;
+  timestamp: string;
+  targetType: "following" | "followers";
+}
+
 export interface VaultState {
   users: Record<string, DbUser>; // keyed by email
   usersById: Record<string, string>; // userId -> email
   unlockedAudits: Record<string, Record<string, string>>; // email -> { targetUsername: unlockedAt }
   auditCache: Record<string, { data_json: string; created_at: string }>; // `target_username:audit_type` -> data
+  auditHistory: Record<string, AuditHistoryEntry[]>; // email -> list of history items
   magicTokens: Record<string, DbMagicToken>;
 }
 
@@ -44,6 +55,7 @@ let memoryVault: VaultState = {
   usersById: {},
   unlockedAudits: {},
   auditCache: {},
+  auditHistory: {},
   magicTokens: {},
 };
 
@@ -71,6 +83,7 @@ function loadVault(): VaultState {
           usersById: parsed.usersById || {},
           unlockedAudits: parsed.unlockedAudits || {},
           auditCache: parsed.auditCache || {},
+          auditHistory: parsed.auditHistory || {},
           magicTokens: parsed.magicTokens || {},
         };
       }
@@ -88,12 +101,10 @@ function persistVault(): void {
     const vaultPath = getVaultPath();
     const dir = path.dirname(vaultPath);
 
-    // Only attempt directory creation if dir does not exist
     if (!fs.existsSync(dir)) {
       try {
         fs.mkdirSync(dir, { recursive: true });
       } catch (mkdirErr: any) {
-        // Read-only filesystem warning - continue in-memory
         return;
       }
     }
@@ -181,7 +192,6 @@ export function authenticateUser(
 
   const existing = memoryVault.users[cleanEmail];
   if (!existing) {
-    // Auto-register if not yet found
     return registerUser(cleanEmail, password);
   }
 
@@ -305,7 +315,7 @@ export function getUserPlanAndUsage(emailOrUserId: string | null | undefined): {
     canSearchTarget: (target: string) => {
       const cleanTarget = normalizeTargetUsername(target);
       if (plan === "unlimited") return true;
-      if (searched.includes(cleanTarget)) return true; // re-auditing already unlocked account is allowed
+      if (searched.includes(cleanTarget)) return true;
       return searched.length < limit;
     },
   };
@@ -371,7 +381,6 @@ export function unlockAudit(emailOrUserId: string, targetUsername: string): bool
 
   if (!email) return false;
 
-  // Ensure user is created and assigned standard plan if free
   const user = getOrCreateUser(email);
   if (user.plan === "free") {
     user.plan = "standard";
@@ -393,7 +402,7 @@ export function unlockAudit(emailOrUserId: string, targetUsername: string): bool
 }
 
 /**
- * Check if a specific Instagram audit is unlocked for a user/email or guest session
+ * Check if a specific Instagram audit is unlocked for a user
  */
 export function isAuditUnlocked(
   emailOrUserId: string | null | undefined,
@@ -428,6 +437,70 @@ export function getUserUnlockedAudits(emailOrUserId: string): string[] {
   if (!userAudits) return [];
 
   return Object.keys(userAudits);
+}
+
+/**
+ * Record an audit in user search history
+ */
+export function recordAuditHistory(
+  emailOrUserId: string,
+  entry: {
+    username: string;
+    name?: string;
+    avatar?: string;
+    targetType?: "following" | "followers";
+  }
+): void {
+  loadVault();
+  let email = emailOrUserId.trim().toLowerCase();
+  if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
+    email = memoryVault.usersById[emailOrUserId];
+  }
+
+  if (!memoryVault.auditHistory) memoryVault.auditHistory = {};
+  if (!memoryVault.auditHistory[email]) memoryVault.auditHistory[email] = [];
+
+  const cleanTarget = normalizeTargetUsername(entry.username);
+  const isUnlocked = isAuditUnlocked(email, cleanTarget);
+
+  const historyList = memoryVault.auditHistory[email];
+  // Remove duplicate if already in history, then prepend to top
+  const filtered = historyList.filter((item) => item.username.toLowerCase() !== cleanTarget);
+
+  filtered.unshift({
+    id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    username: cleanTarget,
+    name: entry.name || cleanTarget,
+    avatar: entry.avatar || `/api/proxy-image?url=https%3A%2F%2Fui-avatars.com%2Fapi%2F%3Fname%3D${encodeURIComponent(cleanTarget)}%26background%3D0284c7%26color%3Dfff`,
+    isUnlocked,
+    timestamp: new Date().toISOString(),
+    targetType: entry.targetType || "following",
+  });
+
+  // Keep last 50 history items
+  memoryVault.auditHistory[email] = filtered.slice(0, 50);
+  persistVault();
+}
+
+/**
+ * Get user audit history
+ */
+export function getUserAuditHistory(emailOrUserId: string): AuditHistoryEntry[] {
+  if (!emailOrUserId) return [];
+  loadVault();
+  let email = emailOrUserId.trim().toLowerCase();
+  if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
+    email = memoryVault.usersById[emailOrUserId];
+  }
+
+  if (!memoryVault.auditHistory || !memoryVault.auditHistory[email]) {
+    return [];
+  }
+
+  return memoryVault.auditHistory[email].map((item) => ({
+    ...item,
+    isUnlocked: isAuditUnlocked(email, item.username),
+  }));
 }
 
 /**

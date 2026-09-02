@@ -11,6 +11,7 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 import { AuthModal } from "@/components/AuthModal";
 import { LegalModal, LegalModalType } from "@/components/LegalModal";
 import { AuditResult } from "@/app/api/audit/route";
+import { trackSearchEvent, trackInitiateCheckout, trackPurchase } from "@/lib/analytics";
 
 export default function ReportPage() {
   const params = useParams();
@@ -54,6 +55,7 @@ export default function ReportPage() {
       const urlParams = new URLSearchParams(window.location.search);
       const unlockedParam = urlParams.get("unlocked");
       const emailParam = urlParams.get("email");
+      const planParam = urlParams.get("plan") as "standard" | "unlimited" | null;
 
       if (emailParam) {
         setUserEmail(emailParam);
@@ -61,6 +63,11 @@ export default function ReportPage() {
       } else {
         const savedEmail = localStorage.getItem("gs_user_email");
         if (savedEmail) setUserEmail(savedEmail);
+      }
+
+      if (unlockedParam === "true") {
+        setUnlockedAudits((prev) => Array.from(new Set([...prev, targetUser])));
+        trackPurchase(planParam || "standard", planParam === "unlimited" ? 9.99 : 3.99, targetUser);
       }
 
       const activeEmail = emailParam || localStorage.getItem("gs_user_email");
@@ -76,10 +83,6 @@ export default function ReportPage() {
         }
       }
 
-      if (unlockedParam === "true") {
-        setUnlockedAudits((prev) => Array.from(new Set([...prev, targetUser])));
-      }
-
       handleAuditSubmit(targetUser);
     };
 
@@ -90,12 +93,13 @@ export default function ReportPage() {
     const cleanUser = username.trim().replace(/^@/, "").toLowerCase();
     if (!cleanUser) return;
 
-    // Check Guest search limit
+    trackSearchEvent(cleanUser);
+
     const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("gs_user_email") : null);
     if (!activeEmail) {
       const guestSearches = JSON.parse(localStorage.getItem("gs_guest_searches") || "[]");
       if (!guestSearches.includes(cleanUser) && guestSearches.length >= 5) {
-        setIsCheckoutOpen(true);
+        handleOpenCheckout();
         return;
       }
     }
@@ -117,7 +121,19 @@ export default function ReportPage() {
       if (json.success && json.data) {
         setAuditData(json.data);
 
-        if (!activeEmail) {
+        if (activeEmail) {
+          fetch("/api/user/history", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: activeEmail,
+              username: cleanUser,
+              name: json.data.fullName || cleanUser,
+              avatar: json.data.avatar,
+              targetType: json.data.targetType || "following",
+            }),
+          }).catch(() => {});
+        } else {
           const guestSearches: string[] = JSON.parse(localStorage.getItem("gs_guest_searches") || "[]");
           if (!guestSearches.includes(cleanUser)) {
             guestSearches.push(cleanUser);
@@ -126,9 +142,9 @@ export default function ReportPage() {
         }
       } else {
         if (json.error === "MONTHLY_LIMIT_REACHED") {
-          setIsUpgradeOpen(true);
+          handleOpenUpgrade();
         } else if (json.error === "FREE_LIMIT_REACHED") {
-          setIsCheckoutOpen(true);
+          handleOpenCheckout();
         } else {
           setAuditError(json.error || json.details || "Failed to audit account.");
         }
@@ -142,8 +158,15 @@ export default function ReportPage() {
   };
 
   const handleToggleTheme = () => setIsDark((prev) => !prev);
-  const handleOpenCheckout = () => setIsCheckoutOpen(true);
+  const handleOpenCheckout = () => {
+    trackInitiateCheckout("standard", 3.99);
+    setIsCheckoutOpen(true);
+  };
   const handleCloseCheckout = () => setIsCheckoutOpen(false);
+  const handleOpenUpgrade = () => {
+    trackInitiateCheckout("unlimited", 9.99);
+    setIsUpgradeOpen(true);
+  };
   const handleOpenAuth = () => setIsAuthOpen(true);
   const handleCloseAuth = () => setIsAuthOpen(false);
 
@@ -166,6 +189,7 @@ export default function ReportPage() {
     setUserEmail(email);
     localStorage.setItem("gs_user_email", email);
     setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
+    trackPurchase("standard", 3.99, cleanTarget);
     if (auditData) {
       setAuditData({
         ...auditData,
@@ -177,6 +201,7 @@ export default function ReportPage() {
   const handleSuccessUpgrade = (email: string) => {
     setUserEmail(email);
     localStorage.setItem("gs_user_email", email);
+    trackPurchase("unlimited", 9.99, currentUsername);
     if (currentUsername) {
       handleAuditSubmit(currentUsername);
     }

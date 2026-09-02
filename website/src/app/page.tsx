@@ -10,6 +10,7 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 import { AuthModal } from "@/components/AuthModal";
 import { LegalModal, LegalModalType } from "@/components/LegalModal";
 import { AuditResult } from "@/app/api/audit/route";
+import { trackSearchEvent, trackInitiateCheckout, trackPurchase } from "@/lib/analytics";
 
 export default function Home() {
   const [isDark, setIsDark] = useState(true);
@@ -31,7 +32,7 @@ export default function Home() {
     if (savedTheme) {
       setIsDark(savedTheme === "dark");
     } else {
-      setIsDark(true); // Default to dark mode
+      setIsDark(true);
     }
   }, []);
 
@@ -52,6 +53,7 @@ export default function Home() {
       const unlockedParam = urlParams.get("unlocked");
       const emailParam = urlParams.get("email");
       const usernameParam = urlParams.get("username");
+      const planParam = urlParams.get("plan") as "standard" | "unlimited" | null;
       const authTokenParam = urlParams.get("auth_token");
 
       if (emailParam) {
@@ -60,6 +62,16 @@ export default function Home() {
       } else {
         const savedEmail = localStorage.getItem("gs_user_email");
         if (savedEmail) setUserEmail(savedEmail);
+      }
+
+      // If returning from payment unlock
+      if (unlockedParam === "true" && usernameParam) {
+        const cleanTarget = usernameParam.replace(/^@/, "").toLowerCase();
+        setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
+        trackPurchase(planParam || "standard", planParam === "unlimited" ? 9.99 : 3.99, cleanTarget);
+        handleAuditSubmit(cleanTarget);
+      } else if (usernameParam) {
+        handleAuditSubmit(usernameParam);
       }
 
       // If returning from magic token
@@ -80,7 +92,6 @@ export default function Home() {
           console.error("Auth token verification error:", err);
         }
       } else {
-        // Load user's unlocked audits
         const emailToQuery = emailParam || localStorage.getItem("gs_user_email");
         if (emailToQuery) {
           try {
@@ -94,15 +105,6 @@ export default function Home() {
           }
         }
       }
-
-      // If returning from payment unlock
-      if (unlockedParam === "true" && usernameParam) {
-        const cleanTarget = usernameParam.replace(/^@/, "").toLowerCase();
-        setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
-        handleAuditSubmit(cleanTarget);
-      } else if (usernameParam) {
-        handleAuditSubmit(usernameParam);
-      }
     };
 
     loadSessionAndParams();
@@ -113,12 +115,15 @@ export default function Home() {
     const cleanUser = username.trim().replace(/^@/, "").toLowerCase();
     if (!cleanUser) return;
 
+    // Track analytics event
+    trackSearchEvent(cleanUser);
+
     // Check Guest search limit (5 searches max for free guests)
     const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("gs_user_email") : null);
     if (!activeEmail) {
       const guestSearches = JSON.parse(localStorage.getItem("gs_guest_searches") || "[]");
       if (!guestSearches.includes(cleanUser) && guestSearches.length >= 5) {
-        setIsCheckoutOpen(true);
+        handleOpenCheckout();
         return;
       }
     }
@@ -143,8 +148,20 @@ export default function Home() {
       if (json.success && json.data) {
         setAuditData(json.data);
 
-        // Record guest search in localStorage
-        if (!activeEmail) {
+        // Record search in user history
+        if (activeEmail) {
+          fetch("/api/user/history", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: activeEmail,
+              username: cleanUser,
+              name: json.data.fullName || cleanUser,
+              avatar: json.data.avatar,
+              targetType: json.data.targetType || "following",
+            }),
+          }).catch(() => {});
+        } else {
           const guestSearches: string[] = JSON.parse(localStorage.getItem("gs_guest_searches") || "[]");
           if (!guestSearches.includes(cleanUser)) {
             guestSearches.push(cleanUser);
@@ -153,9 +170,9 @@ export default function Home() {
         }
       } else {
         if (json.error === "MONTHLY_LIMIT_REACHED") {
-          setIsUpgradeOpen(true);
+          handleOpenUpgrade();
         } else if (json.error === "FREE_LIMIT_REACHED") {
-          setIsCheckoutOpen(true);
+          handleOpenCheckout();
         } else {
           setAuditError(json.error || json.details || "Failed to audit account.");
         }
@@ -173,11 +190,17 @@ export default function Home() {
   };
 
   const handleOpenCheckout = () => {
+    trackInitiateCheckout("standard", 3.99);
     setIsCheckoutOpen(true);
   };
 
   const handleCloseCheckout = () => {
     setIsCheckoutOpen(false);
+  };
+
+  const handleOpenUpgrade = () => {
+    trackInitiateCheckout("unlimited", 9.99);
+    setIsUpgradeOpen(true);
   };
 
   const handleOpenAuth = () => {
@@ -207,6 +230,7 @@ export default function Home() {
     setUserEmail(email);
     localStorage.setItem("gs_user_email", email);
     setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
+    trackPurchase("standard", 3.99, cleanTarget);
     if (auditData) {
       setAuditData({
         ...auditData,
@@ -218,6 +242,7 @@ export default function Home() {
   const handleSuccessUpgrade = (email: string) => {
     setUserEmail(email);
     localStorage.setItem("gs_user_email", email);
+    trackPurchase("unlimited", 9.99, currentUsername);
     if (currentUsername) {
       handleAuditSubmit(currentUsername);
     }
@@ -231,7 +256,6 @@ export default function Home() {
     setLegalModalType(null);
   };
 
-  // Check if current target username is unlocked
   const isCurrentTargetUnlocked = Boolean(
     auditData?.isUnlocked || 
     (currentUsername && unlockedAudits.includes(currentUsername.toLowerCase()))
@@ -294,7 +318,7 @@ export default function Home() {
         onOpenLegal={handleOpenLegal}
       />
 
-      {/* Upgrade to Unlimited Modal ($9.99/mo) - ONLY triggered after 10 accounts */}
+      {/* Upgrade to Unlimited Modal ($9.99/mo) */}
       <UpgradeModal
         isOpen={isUpgradeOpen}
         onClose={() => setIsUpgradeOpen(false)}
