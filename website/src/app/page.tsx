@@ -65,13 +65,14 @@ export default function Home() {
       }
 
       // If returning from payment unlock
+      const forceRefreshParam = urlParams.get("forceRefresh") === "true" || urlParams.get("refresh") === "true";
       if (unlockedParam === "true" && usernameParam) {
         const cleanTarget = usernameParam.replace(/^@/, "").toLowerCase();
         setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
         trackPurchase(planParam || "standard", planParam === "unlimited" ? 9.99 : 3.99, cleanTarget);
-        handleAuditSubmit(cleanTarget);
+        handleAuditSubmit(cleanTarget, true);
       } else if (usernameParam) {
-        handleAuditSubmit(usernameParam);
+        handleAuditSubmit(usernameParam, forceRefreshParam);
       }
 
       // If returning from magic token
@@ -111,12 +112,15 @@ export default function Home() {
   }, []);
 
   // Handle live audit fetch via POST
-  const handleAuditSubmit = async (username: string) => {
+  const handleAuditSubmit = async (username: string, forceRefresh: boolean = false) => {
     const cleanUser = username.trim().replace(/^@/, "").toLowerCase();
     if (!cleanUser) return;
 
     // Track analytics event
     trackSearchEvent(cleanUser);
+
+    // If re-scanning the current target on screen or forceRefresh requested, bypass cache
+    const isRescan = Boolean(forceRefresh || (auditData && auditData.username?.toLowerCase() === cleanUser));
 
     // Check Guest search limit (1 free search for guests)
     const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("gs_user_email") : null);
@@ -140,7 +144,8 @@ export default function Home() {
         },
         body: JSON.stringify({ 
           username: cleanUser,
-          email: activeEmail || undefined 
+          email: activeEmail || undefined,
+          forceRefresh: isRescan,
         }),
       });
       const json = await res.json();

@@ -324,84 +324,24 @@ function buildLiveAuditResult(
     };
   });
 
-  // Verified chronological overlays for authenticated baseline accounts
-  const VERIFIED_FOLLOWINGS: Record<string, { username: string; name: string; isVerified?: boolean; isNewFollow?: boolean }[]> = {
-    theleeparsons: [
-      { username: "cr1ynn222", name: "cr1ynn222", isNewFollow: true },
-      { username: "viillainz", name: "linus", isNewFollow: true },
-      { username: "brielle.xxl", name: "brielle", isNewFollow: true },
-      { username: "joshuadun", name: "jøsh dun", isVerified: true, isNewFollow: true },
-      { username: "thataipage", name: "That AI Page", isVerified: true, isNewFollow: true },
-      { username: "noimthebestgamer", name: "noimthebestgamer", isNewFollow: false },
-      { username: "brandon0trevino", name: "Brandon Trevino", isNewFollow: false },
-      { username: "kevjumba", name: "m0nk", isVerified: true, isNewFollow: false },
-      { username: "pplhatejaysin", name: "JAYSIN THE SIN GOD", isNewFollow: false },
-    ],
-  };
+  // Dynamic Chronological Diff Prioritization:
+  // 1. Brand new follows detected by the snapshot diff engine are prioritized at the top (Rank #0, #1, ...)
+  // 2. Followed by all other accounts in their exact scraped order.
+  const followingInputs: AccountForensicInput[] = [
+    ...rawFollowingInputs.filter((a) => newFollowingSet.has(a.username.toLowerCase())),
+    ...rawFollowingInputs.filter((a) => !newFollowingSet.has(a.username.toLowerCase())),
+  ].map((acc, idx) => ({
+    ...acc,
+    chronologicalRank: idx,
+  }));
 
-  const VERIFIED_FOLLOWERS: Record<string, { username: string; name: string; isVerified?: boolean; isNewFollow?: boolean }[]> = {
-    theleeparsons: [
-      { username: "laurenowens._", name: "laurenowens._", isNewFollow: true },
-      { username: "brandon0trevino", name: "Brandon Trevino", isNewFollow: true },
-      { username: "daveytheshooter", name: "DaveyTheShooter", isNewFollow: true },
-      { username: "wetball909", name: "Wetball", isNewFollow: true },
-      { username: "iamvivaswan", name: "VivaSwan", isNewFollow: true },
-      { username: "thejacobwyse", name: "thejacobwyse", isNewFollow: false },
-    ],
-  };
-
-  let followingInputs = rawFollowingInputs;
-  if (VERIFIED_FOLLOWINGS[cleanUsername]) {
-    const verifiedList = VERIFIED_FOLLOWINGS[cleanUsername];
-    const verifiedUsernames = new Set(verifiedList.map((v) => v.username.toLowerCase()));
-    const rawMap = new Map(rawFollowingInputs.map((r) => [r.username.toLowerCase(), r]));
-
-    const verifiedInputs: AccountForensicInput[] = verifiedList.map((v, idx) => {
-      const existingRaw = rawMap.get(v.username.toLowerCase());
-      const followsYou = followersSet.has(v.username.toLowerCase()) || v.username.toLowerCase() === "brandon0trevino";
-      return {
-        username: v.username,
-        name: v.name,
-        avatar: existingRaw?.avatar || `/api/proxy-image?url=https%3A%2F%2Fui-avatars.com%2Fapi%2F%3Fname%3D${encodeURIComponent(v.name)}%26background%3D0284c7%26color%3Dfff`,
-        isVerified: Boolean(v.isVerified ?? existingRaw?.isVerified),
-        postCount: existingRaw?.postCount ?? 25,
-        followersCount: existingRaw?.followersCount ?? 850,
-        followingCount: existingRaw?.followingCount ?? 650,
-        followsYou,
-        chronologicalRank: idx,
-        isNewFollow: Boolean(v.isNewFollow),
-        detectedAt: v.isNewFollow ? "Today" : undefined,
-      };
-    });
-    const filteredRaw = rawFollowingInputs.filter((r) => !verifiedUsernames.has(r.username.toLowerCase()));
-    followingInputs = [...verifiedInputs, ...filteredRaw];
-  }
-
-  let followersInputs = rawFollowersInputs;
-  if (VERIFIED_FOLLOWERS[cleanUsername]) {
-    const verifiedList = VERIFIED_FOLLOWERS[cleanUsername];
-    const verifiedUsernames = new Set(verifiedList.map((v) => v.username.toLowerCase()));
-    const rawMap = new Map(rawFollowersInputs.map((r) => [r.username.toLowerCase(), r]));
-
-    const verifiedInputs: AccountForensicInput[] = verifiedList.map((v, idx) => {
-      const existingRaw = rawMap.get(v.username.toLowerCase());
-      return {
-        username: v.username,
-        name: v.name,
-        avatar: existingRaw?.avatar || `/api/proxy-image?url=https%3A%2F%2Fui-avatars.com%2Fapi%2F%3Fname%3D${encodeURIComponent(v.name)}%26background%3D0284c7%26color%3Dfff`,
-        isVerified: Boolean(v.isVerified ?? existingRaw?.isVerified),
-        postCount: existingRaw?.postCount ?? 15,
-        followersCount: existingRaw?.followersCount ?? 1200,
-        followingCount: existingRaw?.followingCount ?? 800,
-        followsYou: true,
-        chronologicalRank: idx,
-        isNewFollow: Boolean(v.isNewFollow),
-        detectedAt: v.isNewFollow ? "Today" : undefined,
-      };
-    });
-    const filteredRaw = rawFollowersInputs.filter((r) => !verifiedUsernames.has(r.username.toLowerCase()));
-    followersInputs = [...verifiedInputs, ...filteredRaw];
-  }
+  const followersInputs: AccountForensicInput[] = [
+    ...rawFollowersInputs.filter((a) => newFollowersSet.has(a.username.toLowerCase())),
+    ...rawFollowersInputs.filter((a) => !newFollowersSet.has(a.username.toLowerCase())),
+  ].map((acc, idx) => ({
+    ...acc,
+    chronologicalRank: idx,
+  }));
 
 
   const followingBatch = classifyAccountBatch(followingInputs);
@@ -671,9 +611,9 @@ export async function POST(req: NextRequest) {
 
     const unlocked = isAuditUnlocked(userEmail, cleanUsername);
 
-    // Check cache first (60s anti-spam debounce window)
+    // Check cache first (15s anti-spam debounce window)
     if (!forceRefresh) {
-      const cached = getAuditCache(cleanUsername, targetType, 60);
+      const cached = getAuditCache(cleanUsername, targetType, 15);
       if (cached) {
         return NextResponse.json({ success: true, data: maskResultForPaywall(cached, unlocked) });
       }
@@ -794,9 +734,9 @@ export async function GET(req: NextRequest) {
 
     const unlocked = isAuditUnlocked(userEmail, cleanUsername);
 
-    // Check cache first (60s anti-spam debounce window)
+    // Check cache first (15s anti-spam debounce window)
     if (!forceRefresh) {
-      const cached = getAuditCache(cleanUsername, targetType, 60);
+      const cached = getAuditCache(cleanUsername, targetType, 15);
       if (cached) {
         return NextResponse.json({ success: true, data: maskResultForPaywall(cached, unlocked) });
       }

@@ -712,11 +712,24 @@ export function recordFollowsSnapshot(
   } else {
     const prevSet = new Set(previousSnapshot.usernames.map((u) => u.toLowerCase().replace(/^@/, "")));
 
-    // Accounts in current scrape that were not in previous snapshot
-    newFollows = currentList.filter((u) => !prevSet.has(u.toLowerCase().replace(/^@/, "")));
+    // Detect new follows: accounts in current scrape that were not in previous snapshot
+    if (previousSnapshot.usernames.length <= 50 && currentList.length > 100) {
+      // Upgraded from preview (e.g. 25) to full scrape (e.g. 500)
+      // Compare the top slice to avoid false positives across older accounts
+      newFollows = currentList
+        .slice(0, previousSnapshot.usernames.length)
+        .filter((u) => !prevSet.has(u.toLowerCase().replace(/^@/, "")));
+    } else {
+      newFollows = currentList.filter((u) => !prevSet.has(u.toLowerCase().replace(/^@/, "")));
+    }
 
-    // Accounts in previous snapshot that are no longer in current scrape
-    unfollowed = previousSnapshot.usernames.filter((u) => !currentSet.has(u.toLowerCase().replace(/^@/, "")));
+    // Only detect unfollows if the current scrape is comparable in size to the previous snapshot
+    // to prevent small preview scrapes from falsely marking full-list accounts as unfollowed
+    if (currentList.length >= previousSnapshot.usernames.length * 0.8) {
+      unfollowed = previousSnapshot.usernames.filter((u) => !currentSet.has(u.toLowerCase().replace(/^@/, "")));
+    } else {
+      unfollowed = [];
+    }
   }
 
   // Push new snapshot to history (keep last 20 snapshots)
