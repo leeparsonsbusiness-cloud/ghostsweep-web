@@ -230,13 +230,43 @@ async function scrapeInstagramWithApify(
  */
 function buildLiveAuditResult(
   cleanUsername: string,
-  follows: any[],
+  followingRaw: any[],
+  followersRaw: any[],
   targetType: TargetType,
   unlocked: boolean,
   profileData?: TargetProfileData | null
 ): AuditResult {
-  // Map raw Apify items into AccountForensicInput array
-  const rawAccounts: AccountForensicInput[] = follows.map((item: any, idx: number) => {
+  const followersSet = new Set(
+    followersRaw.map((f: any) =>
+      (f.username || f.handle || "").toLowerCase().replace(/^@/, "")
+    )
+  );
+
+  // Map raw Following items into AccountForensicInput array
+  const followingInputs: AccountForensicInput[] = followingRaw.map((item: any, idx: number) => {
+    const rawPic = item.profilePicUrl || item.profile_pic_url || item.profilePicUrlHD || item.avatar || "";
+    const proxiedAvatar = rawPic ? `/api/proxy-image?url=${encodeURIComponent(rawPic)}` : "";
+    const uname = (item.username || item.handle || `user_${idx + 1}`).replace(/^@/, "").trim();
+    const fullName = item.fullName || item.full_name || item.name || uname;
+    const followsYou = followersSet.has(uname.toLowerCase());
+
+    return {
+      username: uname,
+      name: fullName,
+      bio: item.biography || item.bio || "",
+      avatar: proxiedAvatar,
+      isVerified: Boolean(item.isVerified || item.is_verified || item.verified),
+      isPrivate: Boolean(item.isPrivate || item.is_private),
+      postCount: item.postsCount ?? item.media_count ?? 0,
+      followersCount: item.followersCount ?? item.follower_count ?? 0,
+      followingCount: item.followingCount ?? item.following_count ?? 0,
+      followsYou,
+      chronologicalRank: idx,
+    };
+  });
+
+  // Map raw Followers items into AccountForensicInput array
+  const followersInputs: AccountForensicInput[] = followersRaw.map((item: any, idx: number) => {
     const rawPic = item.profilePicUrl || item.profile_pic_url || item.profilePicUrlHD || item.avatar || "";
     const proxiedAvatar = rawPic ? `/api/proxy-image?url=${encodeURIComponent(rawPic)}` : "";
     const uname = (item.username || item.handle || `user_${idx + 1}`).replace(/^@/, "").trim();
@@ -252,78 +282,91 @@ function buildLiveAuditResult(
       postCount: item.postsCount ?? item.media_count ?? 0,
       followersCount: item.followersCount ?? item.follower_count ?? 0,
       followingCount: item.followingCount ?? item.following_count ?? 0,
-      followsYou: targetType === "followers",
+      followsYou: true,
       chronologicalRank: idx,
     };
   });
 
-  // Classify all accounts by gender & engagement
-  const batchResult = classifyAccountBatch(rawAccounts);
-  const classifiedAccounts = batchResult.accounts;
+  const followingBatch = classifyAccountBatch(followingInputs);
+  const followersBatch = classifyAccountBatch(followersInputs.length > 0 ? followersInputs : followingInputs);
 
-  // Compute live demographics
-  const totalAudited = classifiedAccounts.length;
-  const femaleAccounts = classifiedAccounts.filter((a) => a.gender === "female");
-  const maleAccounts = classifiedAccounts.filter((a) => a.gender === "male");
-  const botAccounts = classifiedAccounts.filter((a) => a.gender === "bot");
+  const realFollowersCount = profileData?.followersCount || (followersInputs.length > 0 ? followersInputs.length : 2376);
+  const realFollowingCount = profileData?.followingCount || (followingInputs.length > 0 ? followingInputs.length : 2780);
+  const ratio = realFollowingCount > 0 ? Number((realFollowersCount / realFollowingCount).toFixed(2)) : 1.0;
 
-  const femaleCount = femaleAccounts.length;
-  const maleCount = maleAccounts.length;
-  const inactiveCount = botAccounts.length;
+  // Following demographics scaled to realFollowingCount
+  const fMalePct = followingBatch.summary.malePct;
+  const fFemalePct = followingBatch.summary.femalePct;
+  const fInactivePct = followingBatch.summary.inactivePct;
 
-  const femalePct = totalAudited > 0 ? Math.round((femaleCount / totalAudited) * 100) : 50;
-  const malePct = totalAudited > 0 ? Math.round((maleCount / totalAudited) * 100) : 50;
-  const inactivePct = totalAudited > 0 ? Math.max(0, 100 - (femalePct + malePct)) : 0;
-
-  const demographics: DemographicSplit = {
-    malePct,
-    femalePct,
-    inactivePct,
-    maleCount,
-    femaleCount,
-    inactiveCount,
-    formatted: `👨 ${malePct}% Male • 👩 ${femalePct}% Female • 🤖 ${inactivePct}% Bots`,
-    male: maleCount,
-    female: femaleCount,
-    inactiveOver90d: inactiveCount,
-    nonFollowers: classifiedAccounts.filter((a) => !a.followsYou).length,
-    totalAudited,
+  const followingDemographics: DemographicSplit = {
+    malePct: fMalePct,
+    femalePct: fFemalePct,
+    inactivePct: fInactivePct,
+    maleCount: Math.round((realFollowingCount * fMalePct) / 100),
+    femaleCount: Math.round((realFollowingCount * fFemalePct) / 100),
+    inactiveCount: Math.round((realFollowingCount * fInactivePct) / 100),
+    formatted: `👨 ${fMalePct}% Male • 👩 ${fFemalePct}% Female • 🤖 ${fInactivePct}% Bots`,
+    male: Math.round((realFollowingCount * fMalePct) / 100),
+    female: Math.round((realFollowingCount * fFemalePct) / 100),
+    inactiveOver90d: Math.round((realFollowingCount * fInactivePct) / 100),
+    nonFollowers: followingBatch.accounts.filter((a) => !a.followsYou).length,
+    totalAudited: followingBatch.accounts.length,
   };
 
-  // 5 previews strictly sliced from newest
-  const sampleAccounts = classifiedAccounts.slice(0, 5);
-  const allAccounts = unlocked ? classifiedAccounts : sampleAccounts;
+  // Followers demographics scaled to realFollowersCount
+  const foMalePct = followersBatch.summary.malePct;
+  const foFemalePct = followersBatch.summary.femalePct;
+  const foInactivePct = followersBatch.summary.inactivePct;
 
-  const fallbackAvatar = `/api/proxy-image?url=https%3A%2F%2Fui-avatars.com%2Fapi%2F%3Fname%3D${encodeURIComponent(cleanUsername)}%26background%3D0284c7%26color%3Dfff%26size%3D256`;
-  const primaryAvatar = profileData?.avatar || fallbackAvatar;
+  const followersDemographics: DemographicSplit = {
+    malePct: foMalePct,
+    femalePct: foFemalePct,
+    inactivePct: foInactivePct,
+    maleCount: Math.round((realFollowersCount * foMalePct) / 100),
+    femaleCount: Math.round((realFollowersCount * foFemalePct) / 100),
+    inactiveCount: Math.round((realFollowersCount * foInactivePct) / 100),
+    formatted: `👨 ${foMalePct}% Male • 👩 ${foFemalePct}% Female • 🤖 ${foInactivePct}% Bots`,
+    male: Math.round((realFollowersCount * foMalePct) / 100),
+    female: Math.round((realFollowersCount * foFemalePct) / 100),
+    inactiveOver90d: Math.round((realFollowersCount * foInactivePct) / 100),
+    nonFollowers: 0,
+    totalAudited: followersBatch.accounts.length,
+  };
 
-  const realFollowersCount = profileData?.followersCount || (targetType === "followers" ? totalAudited : 2376);
-  const realFollowingCount = profileData?.followingCount || (targetType === "following" ? totalAudited : 2780);
-  const ratio = realFollowingCount > 0 ? Number((realFollowersCount / realFollowingCount).toFixed(2)) : 1.0;
+  const followingSample = followingBatch.accounts.slice(0, 5);
+  const followingAll = unlocked ? followingBatch.accounts : followingSample;
+
+  const followersSample = followersBatch.accounts.slice(0, 5);
+  const followersAll = unlocked ? followersBatch.accounts : followersSample;
 
   const followingMetrics: TargetTypeMetrics = {
     targetType: "following",
     totalCount: realFollowingCount,
-    demographics,
-    ghostCount: botAccounts.length,
-    nonReciprocalsCount: classifiedAccounts.filter((a) => !a.followsYou).length,
+    demographics: followingDemographics,
+    ghostCount: followingBatch.summary.ghostCount,
+    nonReciprocalsCount: followingBatch.accounts.filter((a) => !a.followsYou).length,
     reachPenalty: 0,
-    lockedCount: Math.max(0, totalAudited - sampleAccounts.length),
-    sampleAccounts,
-    allAccounts,
+    lockedCount: Math.max(0, followingBatch.accounts.length - followingSample.length),
+    sampleAccounts: followingSample,
+    allAccounts: followingAll,
   };
 
   const followersMetrics: TargetTypeMetrics = {
     targetType: "followers",
     totalCount: realFollowersCount,
-    demographics,
-    ghostCount: botAccounts.length,
-    nonReciprocalsCount: classifiedAccounts.filter((a) => !a.followsYou).length,
+    demographics: followersDemographics,
+    ghostCount: followersBatch.summary.ghostCount,
+    nonReciprocalsCount: 0,
     reachPenalty: 0,
-    lockedCount: Math.max(0, totalAudited - sampleAccounts.length),
-    sampleAccounts,
-    allAccounts,
+    lockedCount: Math.max(0, followersBatch.accounts.length - followersSample.length),
+    sampleAccounts: followersSample,
+    allAccounts: followersAll,
   };
+
+  const activeMetrics = targetType === "followers" ? followersMetrics : followingMetrics;
+  const fallbackAvatar = `/api/proxy-image?url=https%3A%2F%2Fui-avatars.com%2Fapi%2F%3Fname%3D${encodeURIComponent(cleanUsername)}%26background%3D0284c7%26color%3Dfff%26size%3D256`;
+  const primaryAvatar = profileData?.avatar || fallbackAvatar;
 
   return {
     username: cleanUsername,
@@ -337,7 +380,7 @@ function buildLiveAuditResult(
     bio: profileData?.bio || "",
     biography: profileData?.bio || "",
     isLiveRealData: true,
-    postCount: profileData?.postsCount ?? totalAudited,
+    postCount: profileData?.postsCount ?? followingBatch.accounts.length,
     followers: realFollowersCount,
     follower_count: realFollowersCount,
     following: realFollowingCount,
@@ -349,25 +392,25 @@ function buildLiveAuditResult(
     healthScore: 88,
     reachPenalty: 0,
     targetType,
-    nonReciprocals: classifiedAccounts.filter((a) => !a.followsYou).length,
-    estimatedGhosts: botAccounts.length,
-    lockedCount: Math.max(0, totalAudited - sampleAccounts.length),
+    nonReciprocals: activeMetrics.nonReciprocalsCount,
+    estimatedGhosts: activeMetrics.ghostCount,
+    lockedCount: activeMetrics.lockedCount,
     isUnlocked: unlocked,
     activitySummary: {
-      girlsCount: femaleCount,
-      girlsPct: femalePct,
-      guysCount: maleCount,
-      guysPct: malePct,
-      recentActivityIndex: femalePct > 60 ? "Heavy Female Follow Ratio" : "Normal Activity",
+      girlsCount: activeMetrics.demographics.femaleCount,
+      girlsPct: activeMetrics.demographics.femalePct,
+      guysCount: activeMetrics.demographics.maleCount,
+      guysPct: activeMetrics.demographics.malePct,
+      recentActivityIndex: activeMetrics.demographics.femalePct > 60 ? "Heavy Female Follow Ratio" : "Normal Activity",
     },
     ghostsAndBots: {
-      count: botAccounts.length,
+      count: activeMetrics.ghostCount,
       reachSuppression: 0,
       reachPenaltyFormatted: "0%",
     },
-    demographics,
-    sampleAccounts,
-    allAccounts,
+    demographics: activeMetrics.demographics,
+    sampleAccounts: activeMetrics.sampleAccounts,
+    allAccounts: activeMetrics.allAccounts,
     followingMetrics,
     followersMetrics,
     recommendations: [
@@ -447,14 +490,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Call live Apify scrapers concurrently (Target Profile Details + Follows)
+    // Call live Apify scrapers concurrently (Target Profile Details + Following + Followers)
     const client = new ApifyClient({ token: process.env.APIFY_API_TOKEN.trim() });
-    const [profileData, followsResult] = await Promise.all([
+    const [profileData, followingResult, followersResult] = await Promise.all([
       scrapeTargetProfileWithApify(cleanUsername, client),
-      scrapeInstagramWithApify(cleanUsername, targetType, unlocked, client),
+      scrapeInstagramWithApify(cleanUsername, "following", unlocked, client),
+      scrapeInstagramWithApify(cleanUsername, "followers", unlocked, client).catch(() => ({ follows: [], targetType: "followers" as TargetType })),
     ]);
 
-    const result = buildLiveAuditResult(cleanUsername, followsResult.follows, targetType, unlocked, profileData);
+    const result = buildLiveAuditResult(
+      cleanUsername,
+      followingResult.follows,
+      followersResult.follows || [],
+      targetType,
+      unlocked,
+      profileData
+    );
 
     // Save to cache & record search usage
     saveAuditCache(cleanUsername, targetType, result);
@@ -533,12 +584,20 @@ export async function GET(req: NextRequest) {
     }
 
     const client = new ApifyClient({ token: process.env.APIFY_API_TOKEN.trim() });
-    const [profileData, followsResult] = await Promise.all([
+    const [profileData, followingResult, followersResult] = await Promise.all([
       scrapeTargetProfileWithApify(cleanUsername, client),
-      scrapeInstagramWithApify(cleanUsername, targetType, unlocked, client),
+      scrapeInstagramWithApify(cleanUsername, "following", unlocked, client),
+      scrapeInstagramWithApify(cleanUsername, "followers", unlocked, client).catch(() => ({ follows: [], targetType: "followers" as TargetType })),
     ]);
 
-    const result = buildLiveAuditResult(cleanUsername, followsResult.follows, targetType, unlocked, profileData);
+    const result = buildLiveAuditResult(
+      cleanUsername,
+      followingResult.follows,
+      followersResult.follows || [],
+      targetType,
+      unlocked,
+      profileData
+    );
 
     saveAuditCache(cleanUsername, targetType, result);
     if (userEmail) {

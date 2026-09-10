@@ -74,9 +74,13 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
 
   const malePct = currentMetrics?.demographics?.malePct ?? 44;
   const femalePct = currentMetrics?.demographics?.femalePct ?? 50;
-  const maleCount = currentMetrics?.demographics?.maleCount ?? Math.round(((currentMetrics?.totalCount || 1000) * malePct) / 100);
-  const femaleCount = currentMetrics?.demographics?.femaleCount ?? Math.round(((currentMetrics?.totalCount || 1000) * femalePct) / 100);
-  const totalCount = currentMetrics?.totalCount || (selectedTargetType === "followers" ? auditData.followers : auditData.following);
+  const totalTargetCount = selectedTargetType === "followers" 
+    ? (auditData.followers || auditData.follower_count || 1000) 
+    : (auditData.following || auditData.following_count || 1000);
+
+  const maleCount = Math.round((totalTargetCount * malePct) / 100);
+  const femaleCount = Math.round((totalTargetCount * femalePct) / 100);
+  const totalCount = totalTargetCount;
 
   // Base pool of accounts
   const allAccounts: ClassifiedAccount[] = currentMetrics?.allAccounts || currentMetrics?.sampleAccounts || [];
@@ -183,7 +187,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
             {/* Girls Followed */}
             <div className="p-3 rounded-xl bg-pink-50/50 dark:bg-pink-950/20 border border-pink-200/60 dark:border-pink-900/40 text-left">
               <div className="flex items-center justify-between text-xs text-pink-600 dark:text-pink-400 font-semibold mb-1">
-                <span>👩 Girls Followed</span>
+                <span>👩 {selectedTargetType === "followers" ? "Girls Following" : "Girls Followed"}</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-pink-100 dark:bg-pink-900/60 font-bold">
                   {femalePct}%
                 </span>
@@ -199,7 +203,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
             {/* Guys Followed */}
             <div className="p-3 rounded-xl bg-sky-50/50 dark:bg-sky-950/20 border border-sky-200/60 dark:border-sky-900/40 text-left">
               <div className="flex items-center justify-between text-xs text-sky-600 dark:text-sky-400 font-semibold mb-1">
-                <span>👨 Guys Followed</span>
+                <span>👨 {selectedTargetType === "followers" ? "Guys Following" : "Guys Followed"}</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-900/60 font-bold">
                   {malePct}%
                 </span>
