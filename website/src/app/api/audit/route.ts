@@ -34,13 +34,16 @@ export type TargetType = "following" | "followers";
 export interface DemographicSplit {
   malePct: number;
   femalePct: number;
+  brandPct?: number;
   inactivePct: number;
   maleCount: number;
   femaleCount: number;
+  brandCount?: number;
   inactiveCount: number;
   formatted: string;
   male: number;
   female: number;
+  brand?: number;
   inactiveOver90d: number;
   nonFollowers: number;
   totalAudited: number;
@@ -297,18 +300,22 @@ function buildLiveAuditResult(
   // Following demographics scaled to realFollowingCount
   const fMalePct = followingBatch.summary.malePct;
   const fFemalePct = followingBatch.summary.femalePct;
+  const fBrandPct = followingBatch.summary.brandPct || 0;
   const fInactivePct = followingBatch.summary.inactivePct;
 
   const followingDemographics: DemographicSplit = {
     malePct: fMalePct,
     femalePct: fFemalePct,
+    brandPct: fBrandPct,
     inactivePct: fInactivePct,
     maleCount: Math.round((realFollowingCount * fMalePct) / 100),
     femaleCount: Math.round((realFollowingCount * fFemalePct) / 100),
+    brandCount: Math.round((realFollowingCount * fBrandPct) / 100),
     inactiveCount: Math.round((realFollowingCount * fInactivePct) / 100),
-    formatted: `👨 ${fMalePct}% Male • 👩 ${fFemalePct}% Female • 🤖 ${fInactivePct}% Bots`,
+    formatted: `👨 ${fMalePct}% Male • 👩 ${fFemalePct}% Female • 🏢 ${fBrandPct}% Brands • 🤖 ${fInactivePct}% Bots`,
     male: Math.round((realFollowingCount * fMalePct) / 100),
     female: Math.round((realFollowingCount * fFemalePct) / 100),
+    brand: Math.round((realFollowingCount * fBrandPct) / 100),
     inactiveOver90d: Math.round((realFollowingCount * fInactivePct) / 100),
     nonFollowers: followingBatch.accounts.filter((a) => !a.followsYou).length,
     totalAudited: followingBatch.accounts.length,
@@ -317,18 +324,22 @@ function buildLiveAuditResult(
   // Followers demographics scaled to realFollowersCount
   const foMalePct = followersBatch.summary.malePct;
   const foFemalePct = followersBatch.summary.femalePct;
+  const foBrandPct = followersBatch.summary.brandPct || 0;
   const foInactivePct = followersBatch.summary.inactivePct;
 
   const followersDemographics: DemographicSplit = {
     malePct: foMalePct,
     femalePct: foFemalePct,
+    brandPct: foBrandPct,
     inactivePct: foInactivePct,
     maleCount: Math.round((realFollowersCount * foMalePct) / 100),
     femaleCount: Math.round((realFollowersCount * foFemalePct) / 100),
+    brandCount: Math.round((realFollowersCount * foBrandPct) / 100),
     inactiveCount: Math.round((realFollowersCount * foInactivePct) / 100),
-    formatted: `👨 ${foMalePct}% Male • 👩 ${foFemalePct}% Female • 🤖 ${foInactivePct}% Bots`,
+    formatted: `👨 ${foMalePct}% Male • 👩 ${foFemalePct}% Female • 🏢 ${foBrandPct}% Brands • 🤖 ${foInactivePct}% Bots`,
     male: Math.round((realFollowersCount * foMalePct) / 100),
     female: Math.round((realFollowersCount * foFemalePct) / 100),
+    brand: Math.round((realFollowersCount * foBrandPct) / 100),
     inactiveOver90d: Math.round((realFollowersCount * foInactivePct) / 100),
     nonFollowers: 0,
     totalAudited: followersBatch.accounts.length,

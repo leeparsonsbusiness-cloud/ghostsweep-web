@@ -41,7 +41,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
   const [selectedTargetType, setSelectedTargetType] = useState<TargetType>("following");
   const [showBreakdown, setShowBreakdown] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [genderFilter, setGenderFilter] = useState<"all" | "female" | "male">("all");
+  const [genderFilter, setGenderFilter] = useState<"all" | "female" | "male" | "brand">("all");
 
   const getScoreBadge = (score: number) => {
     if (score >= 75) {
@@ -74,6 +74,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
 
   const malePct = currentMetrics?.demographics?.malePct ?? 44;
   const femalePct = currentMetrics?.demographics?.femalePct ?? 50;
+  const brandPct = currentMetrics?.demographics?.brandPct ?? 6;
   const totalTargetCount = selectedTargetType === "followers" 
     ? (auditData.followers || auditData.follower_count || 1000) 
     : (auditData.following || auditData.following_count || 1000);
@@ -94,6 +95,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
     }
     if (genderFilter === "female") return acc.gender === "female";
     if (genderFilter === "male") return acc.gender === "male";
+    if (genderFilter === "brand") return acc.gender === "brand" || acc.isBrand;
     return true;
   });
 
@@ -328,6 +330,33 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                 <span>({allAccounts.filter((a) => a.gender === "male").length})</span>
               )}
             </button>
+
+            {/* Brands / Studios Filter Pill (Gated on Free Tier) */}
+            <button
+              type="button"
+              id="filter-pill-brand"
+              onClick={() => {
+                if (!isUnlocked) {
+                  onOpenCheckout();
+                } else {
+                  setGenderFilter("brand");
+                }
+              }}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                isUnlocked && genderFilter === "brand"
+                  ? "bg-amber-600 text-white font-black shadow-xs"
+                  : isUnlocked
+                  ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                  : "bg-zinc-100 dark:bg-zinc-800/80 text-zinc-500 dark:text-zinc-400 hover:border-amber-500/40 border border-transparent hover:text-zinc-800 dark:hover:text-zinc-200 cursor-pointer"
+              }`}
+            >
+              <span>🏢 Brands &amp; Pages</span>
+              {!isUnlocked ? (
+                <Lock className="w-3 h-3 text-amber-400" />
+              ) : (
+                <span>({allAccounts.filter((a) => a.gender === "brand" || a.isBrand).length})</span>
+              )}
+            </button>
           </div>
 
           <button
@@ -550,9 +579,13 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
                             acc.gender === "female"
                               ? "bg-pink-50 dark:bg-pink-950/60 text-pink-600 dark:text-pink-400 border-pink-200 dark:border-pink-800/60"
-                              : "bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800/60"
+                              : acc.gender === "male"
+                              ? "bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800/60"
+                              : acc.gender === "brand" || acc.isBrand
+                              ? "bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/60"
+                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700"
                           }`}>
-                            {acc.genderLabel || (acc.gender === "female" ? "👩 Girl" : "👨 Guy")}
+                            {acc.genderLabel || (acc.gender === "female" ? "👩 Girl" : acc.gender === "male" ? "👨 Guy" : acc.gender === "brand" ? "🏢 Brand" : "🤖 Bot")}
                           </span>
 
                           <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">

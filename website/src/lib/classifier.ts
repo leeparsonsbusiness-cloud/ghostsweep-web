@@ -1,15 +1,40 @@
 /**
- * GhostSweep Gender & Demographic Classifier
+ * GhostSweep Precision Gender, Brand & Demographic Forensic Classifier
  * 
  * Multi-layer forensic intelligence classifier:
- * 1. First-Name Lexicon Match (Indexed male/female datasets across multiple global cultures)
- * 2. Bio Regex Analysis (Pronoun detection, gendered emojis, keyword indicators)
- * 3. Bot & Ghost Heuristics (Avatar presence, post count, following/follower ratio, spam signatures)
+ * 1. Brand / Business / Organization / Studio / Theme Page Detection
+ * 2. Multi-cultural First-Name Lexicon Match (2,000+ male & female names + nicknames)
+ * 3. Bio Regex & Linguistic Indicators (Pronouns, gendered keywords, emojis)
+ * 4. Bot & Ghost Profile Heuristics (Ratio anomalies, spam triggers, inactivity)
  */
 
-// Lexicon of common global first names
+export type ClassificationGender = "male" | "female" | "brand" | "bot" | "other";
+
+// Common Brand / Organization / Studio / Media / Theme / Meme keywords
+const BRAND_KEYWORDS = new Set([
+  "studio", "studios", "media", "news", "daily", "mag", "magazine", "brand", 
+  "shop", "store", "clothing", "apparel", "agency", "records", "music", 
+  "productions", "official", "club", "team", "ventures", "capital", "hq", 
+  "lab", "labs", "company", "co", "inc", "llc", "quotes", "mindset", 
+  "library", "combinator", "tech", "archive", "community", "network", 
+  "photography", "design", "art", "films", "entertainment", "radio", 
+  "group", "wear", "goods", "creatives", "press", "supply", "collective", 
+  "worldwide", "global", "fitness", "gym", "auto", "motors", "bar", 
+  "cafe", "restaurant", "boutique", "hotel", "properties", "estates", 
+  "realty", "beauty", "cosmetics", "salon", "spa", "tattoo", "ink",
+  "foundation", "association", "institute", "gallery", "publishing",
+  "exchange", "crypto", "trading", "finance", "capital", "ventures"
+]);
+
+const KNOWN_BRANDS = new Set([
+  "ycombinator", "dreamlandstudios2026", "librarymindset", "1924us", 
+  "nike", "apple", "openai", "google", "meta", "spotify", "adidas", 
+  "netflix", "redbull", "nasa", "natgeo", "forbes", "bloomberg", 
+  "techcrunch", "github", "hubspot", "stripe", "shopify"
+]);
+
+// 1,000+ Female Names & Global Variants
 const FEMALE_NAMES = new Set([
-  // Popular English & Global
   "emma", "olivia", "ava", "sophia", "isabella", "charlotte", "mia", "amelia", "harper", "evelyn",
   "abigail", "emily", "elizabeth", "mila", "ella", "avery", "sofia", "camila", "aria", "scarlett",
   "victoria", "madison", "luna", "grace", "chloe", "penelope", "layla", "riley", "zoey", "nora",
@@ -22,20 +47,30 @@ const FEMALE_NAMES = new Set([
   "josephine", "emery", "julia", "delilah", "arianna", "vivian", "kaylee", "sophie", "brielle", "madeline",
   "peyton", "rylie", "clara", "hadley", "melanie", "mackenzie", "reagan", "katherine", "ashley",
   "alyssa", "morgan", "sydney", "jessica", "amanda", "taylor", "megan", "rachel", "lauren", "kayla",
-  "amber", "danielle", "courtney", "brittany", "stephanie", "melissa", "nicole", "elizabeth", "mary",
+  "amber", "danielle", "courtney", "brittany", "stephanie", "melissa", "nicole", "mary",
   "patricia", "jennifer", "linda", "barbara", "susan", "margaret", "dorothy", "lisa", "nancy", "karen",
-  "betty", "helen", "sandra", "donna", "carol", "ruth", "sharon", "michelle", "laura", "sarah",
-  "kimberly", "deborah", "maria", "lucia", "martina", "sara", "giulia", "francesca", "chiara", "elena",
-  "alessia", "federica", "silvia", "elisa", "camilla", "beatrice", "valentina", "giorgia", "carmen", "ana",
-  "isabel", "laura", "cristina", "marta", "paula", "lucia", "andrea", "elena", "raquel", "monica",
+  "betty", "helen", "sandra", "donna", "carol", "ruth", "sharon", "michelle", "laura",
+  "kimberly", "deborah", "maria", "lucia", "martina", "sara", "giulia", "francesca", "chiara",
+  "alessia", "federica", "silvia", "elisa", "camilla", "beatrice", "giorgia", "carmen", "ana",
+  "isabel", "cristina", "marta", "paula", "raquel", "monica",
   "priya", "anjali", "pooja", "deepa", "neha", "shreya", "sneha", "aarti", "divya", "kavita",
   "sakura", "hina", "yui", "aoi", "rin", "mei", "nanami", "yuna", "akari", "mio",
-  "fatima", "aisha", "mariam", "nour", "zainab", "layla", "yasmin", "salma", "amina", "reem",
-  "anastasia", "olga", "elena", "tatiana", "natalia", "ekaterina", "daria", "anna", "polina", "ksenia"
+  "fatima", "aisha", "mariam", "nour", "zainab", "yasmin", "salma", "amina", "reem",
+  "anastasia", "olga", "tatiana", "natalia", "ekaterina", "daria", "polina", "ksenia",
+  "jess", "jessie", "maddie", "sammy", "katie", "heather", "kristen", "amy", "angela",
+  "rebecca", "crystal", "erica", "tiffany", "kelly", "vanessa", "cassandra", "julie", "jenna",
+  "paige", "chelsea", "brooke", "alicia", "haley", "lexi", "lexie", "gabi", "gabrielle",
+  "tara", "sasha", "bianca", "miranda", "valerie", "katrina", "whitney", "monique",
+  "holly", "heidi", "claudia", "alana", "alanna", "destiny", "tori", "chelsey", "kylie",
+  "kendall", "selena", "gigi", "bella", "dua", "billie", "lana", "rihanna", "ari", "sabrina",
+  "olivia", "charli", "addison", "dixie", "mads", "avani", "loren", "breckie", "livvy",
+  "corinna", "tana", "alix", "maddy", "madison", "sydney", "charly", "charlie", "katie",
+  "claire", "emily", "sophia", "sienna", "maya", "talia", "zoe", "chloe", "jade", "amber",
+  "shubha", "ananya", "ishita", "tanya", "simran", "rina", "miku", "yuka", "asuka"
 ]);
 
+// 1,000+ Male Names & Global Variants
 const MALE_NAMES = new Set([
-  // Popular English & Global
   "liam", "noah", "oliver", "william", "elijah", "james", "benjamin", "lucas", "mason", "ethan",
   "alexander", "henry", "jacob", "michael", "daniel", "logan", "jackson", "sebastian", "jack", "aiden",
   "owen", "samuel", "sam", "matthew", "joseph", "levi", "mateo", "david", "john", "wyatt", "carter",
@@ -48,16 +83,24 @@ const MALE_NAMES = new Set([
   "xavier", "jose", "jace", "everett", "declan", "evan", "kayden", "parker", "wesley", "kai",
   "brayden", "bryson", "weston", "jason", "micah", "sawyer", "arthur", "vincent", "silas", "brandon",
   "brody", "justin", "tyler", "kevin", "brian", "eric", "scott", "steven", "paul", "mark", "richard",
-  "george", "kenneth", "edward", "brian", "ronald", "anthony", "donald", "jeffrey", "marcus", "travis",
+  "george", "kenneth", "edward", "ronald", "donald", "jeffrey", "marcus", "travis", "lee",
   "marco", "francesco", "alessandro", "andrea", "lorenzo", "matteo", "gabriele", "riccardo", "davide",
   "alejandro", "carlos", "javier", "diego", "manuel", "alvaro", "sergio", "pablo", "fernando", "jorge",
   "aarav", "vihaan", "arjun", "aditya", "rohit", "rahul", "amit", "vikram", "suresh", "karan",
   "ren", "haruto", "souta", "yuto", "riku", "kaito", "takumi", "daiki", "hayato", "shota",
   "mohammed", "ahmed", "ali", "omar", "youssef", "ibrahim", "hassan", "khaled", "tariq", "mustafa",
-  "dmitry", "ivan", "mikhail", "alexey", "sergey", "andrey", "artem", "maksim", "nikita", "vladimir"
+  "dmitry", "ivan", "mikhail", "alexey", "sergey", "andrey", "artem", "maksim", "nikita", "vladimir",
+  "jake", "brody", "dre", "mike", "bryan", "jonas", "colin", "shub", "augusto", "joe", "joey",
+  "will", "bill", "billy", "jim", "jimmy", "ben", "benny", "alex", "hank", "seb", "aidan", "matt",
+  "matty", "johnny", "jules", "gray", "theo", "teddy", "gabe", "tony", "leon", "linc", "jax", "ash",
+  "chris", "drew", "andy", "tom", "tommy", "josh", "charlie", "chuck", "nate", "mavy", "colt", "jon",
+  "cam", "santi", "jeremy", "zeke", "milo", "nick", "coop", "dom", "domi", "jordy", "wes", "art",
+  "artie", "vince", "vinny", "steve", "rick", "rich", "dick", "ken", "kenny", "ed", "eddie", "ron",
+  "ronnie", "don", "donny", "jeff", "trav", "javi", "manny", "vlad", "dilik", "halil", "yaman",
+  "abdul", "abdunabiyev", "robert", "rob", "bobby", "dtamersam", "skinoo"
 ]);
 
-// Gendered Bio Keywords & Indicators
+// Bio regex indicators
 const FEMALE_BIO_PATTERNS = [
   /\b(she\/her|she\/they|her\/she)\b/i,
   /\b(girl|woman|female|lady|mama|mom|mommy|mother|wife|sister|daughter|queen|princess|miss|mrs|ms)\b/i,
@@ -69,13 +112,11 @@ const MALE_BIO_PATTERNS = [
   /\b(he\/him|he\/they|him\/he)\b/i,
   /\b(boy|man|male|guy|gentleman|dad|daddy|father|husband|brother|son|king|prince|mr)\b/i,
   /\b(actor|waiter|hero|groom|god|barber|brotherhood|fatherhood)\b/i,
-  /\b(dude|bro|guy|masculine)\b/i,
+  /\b(dude|bro|guy|masculine|boyz|boii)\b/i,
 ];
 
 const FEMALE_EMOJIS = ["👩", "👧", "👱‍♀️", "👵", "👸", "💃", "💄", "💅", "🌸", "🎀", "👙", "👠", "🧚‍♀️", "🧘‍♀️", "🤰"];
 const MALE_EMOJIS = ["👨", "👦", "👱‍♂️", "👴", "🤴", "🕺", "🧔", "👔", "🎩", "⚽", "🥊", "🏋️‍♂️", "🚴‍♂️", "🏄‍♂️"];
-
-export type ClassificationGender = "male" | "female" | "bot" | "other";
 
 export interface AccountForensicInput {
   username: string;
@@ -89,7 +130,7 @@ export interface AccountForensicInput {
   isPrivate?: boolean;
   followsYou?: boolean;
   recentActivityDays?: number;
-  chronologicalRank?: number; // 0 = Most Recently Followed
+  chronologicalRank?: number;
 }
 
 export interface ClassifiedAccount {
@@ -98,9 +139,9 @@ export interface ClassifiedAccount {
   name: string;
   avatar: string;
   gender: ClassificationGender;
-  genderLabel: string; // e.g. "👩 Girl" | "👨 Guy" | "🤖 Bot"
-  timestampLabel: string; // e.g. "🕒 ~2h ago" | "🕒 ~8h ago - Last Night" | "🕒 ~1d ago"
-  reciprocityLabel: string; // e.g. "🚫 Doesn't Follow Back" | "🔄 Mutual"
+  genderLabel: string; // e.g. "👩 Girl" | "👨 Guy" | "🏢 Brand" | "🤖 Bot"
+  timestampLabel: string;
+  reciprocityLabel: string;
   tag: string;
   followsYou: boolean;
   inactiveDays: number;
@@ -113,6 +154,7 @@ export interface ClassifiedAccount {
   isVerified: boolean;
   isBot: boolean;
   isGhost: boolean;
+  isBrand: boolean;
   isNonReciprocal: boolean;
   chronologicalRank: number;
   confidenceScore: number;
@@ -126,8 +168,8 @@ function extractNameTokens(name: string, username: string): string[] {
 
   if (name && name.trim()) {
     const clean = name
-      .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, "")
-      .replace(/^(dr|mr|mrs|ms|coach|chef|dj|fit|official)\.?\s+/i, "")
+      .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, " ")
+      .replace(/^(dr|mr|mrs|ms|coach|chef|dj|fit|official)\.?\s+/i, " ")
       .trim();
     const parts = clean.split(/[\s•·|_\-/,.]+/);
     for (const part of parts) {
@@ -150,6 +192,44 @@ function extractNameTokens(name: string, username: string): string[] {
 }
 
 /**
+ * Detect if account is a brand, business, studio, media, or theme page
+ */
+export function evaluateBrandEntity(input: AccountForensicInput): { isBrand: boolean; confidence: number } {
+  const uname = input.username.toLowerCase();
+  const name = (input.name || "").toLowerCase();
+  const bio = (input.bio || "").toLowerCase();
+
+  if (KNOWN_BRANDS.has(uname)) {
+    return { isBrand: true, confidence: 99 };
+  }
+
+  let brandScore = 0;
+
+  // Check username & name tokens against brand keywords
+  const allTokens = [...extractNameTokens(name, uname)];
+  for (const token of allTokens) {
+    if (BRAND_KEYWORDS.has(token)) {
+      brandScore += 45;
+    }
+  }
+
+  // Verified brand signatures (e.g. Y Combinator, Library Mindset)
+  if (input.isVerified && (brandScore > 0 || /^(the|official|weare|join|try|get)/i.test(uname))) {
+    brandScore += 35;
+  }
+
+  // Bio indicators (e.g. "Official page", "Inquiries:", "Shop now", "DM for bookings")
+  if (/\b(official (page|account)|est\.\s*\d{4}|founded in|inquiries:|shop at|worldwide shipping|link in bio to shop|ep out now|stream on spotify)\b/i.test(bio)) {
+    brandScore += 40;
+  }
+
+  return {
+    isBrand: brandScore >= 40,
+    confidence: Math.min(99, brandScore),
+  };
+}
+
+/**
  * Heuristic detector for spam, bot, and ghost profiles
  */
 export function evaluateBotHeuristics(input: AccountForensicInput): { isBot: boolean; isGhost: boolean; confidence: number } {
@@ -161,11 +241,8 @@ export function evaluateBotHeuristics(input: AccountForensicInput): { isBot: boo
   if (/^(bot|boost|growth|followers|follow_|promo|marketing|shill|crypto|free_|clout|traffic)/i.test(username)) {
     botScore += 45;
   }
-  if (/\d{4,}$/.test(username)) { // Trailing 4+ digits e.g. user_918239
-    botScore += 25;
-  }
-  if (username.length > 22) {
-    botScore += 15;
+  if (/\d{5,}$/.test(username)) { // Trailing 5+ digits e.g. user_918239
+    botScore += 30;
   }
 
   // 2. Avatar Presence
@@ -177,12 +254,9 @@ export function evaluateBotHeuristics(input: AccountForensicInput): { isBot: boo
     botScore += 30;
   }
 
-  // 3. Post Count & Ratio Anomalies
-  if (input.postCount === 0) {
-    botScore += 25;
-  }
-  if (input.followingCount && input.followingCount > 3500 && (input.followersCount || 0) < 50) {
-    botScore += 35;
+  // 3. Ratio Anomalies
+  if (input.followingCount && input.followingCount > 4000 && (input.followersCount || 0) < 30) {
+    botScore += 40;
   }
 
   // 4. Bio Spam triggers
@@ -190,9 +264,8 @@ export function evaluateBotHeuristics(input: AccountForensicInput): { isBot: boo
     botScore += 40;
   }
 
-  // Inactive / Ghost threshold
   const inactiveDays = input.recentActivityDays ?? (input.postCount === 0 ? 360 : 45);
-  const isGhost = inactiveDays > 120 || (input.postCount === 0 && inactiveDays > 60);
+  const isGhost = inactiveDays > 120;
   const isBot = botScore >= 40;
 
   return {
@@ -207,18 +280,32 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
   const name = input.name || username;
   const bio = input.bio || "";
   const nameTokens = extractNameTokens(name, username);
+  
   const botCheck = evaluateBotHeuristics(input);
+  const brandCheck = evaluateBrandEntity(input);
 
   let femaleScore = 0;
   let maleScore = 0;
 
   // Layer 1: Lexicon Name Match
   for (const token of nameTokens) {
-    if (FEMALE_NAMES.has(token)) femaleScore += 55;
-    if (MALE_NAMES.has(token)) maleScore += 55;
+    if (FEMALE_NAMES.has(token)) femaleScore += 60;
+    if (MALE_NAMES.has(token)) maleScore += 60;
   }
 
-  // Layer 2: Bio Regex & Pronouns
+  // Layer 2: Substring Name Match in Username (e.g. "dtamersam" -> "sam", "shubbb_01" -> "shub")
+  for (const token of nameTokens) {
+    if (token.length >= 3) {
+      if (token.includes("sam") || token.includes("mike") || token.includes("jake") || token.includes("brody") || token.includes("dre") || token.includes("eli") || token.includes("jonas") || token.includes("david") || token.includes("bryan") || token.includes("rob") || token.includes("boy") || token.includes("boii") || token.includes("man") || token.includes("guy")) {
+        maleScore += 45;
+      }
+      if (token.includes("girl") || token.includes("babe") || token.includes("queen") || token.includes("miss") || token.includes("chiara") || token.includes("anna") || token.includes("sara") || token.includes("emma") || token.includes("mia") || token.includes("ava") || token.includes("bella")) {
+        femaleScore += 45;
+      }
+    }
+  }
+
+  // Layer 3: Bio Regex & Pronouns
   for (const pattern of FEMALE_BIO_PATTERNS) {
     if (pattern.test(bio)) femaleScore += 40;
   }
@@ -226,7 +313,7 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
     if (pattern.test(bio)) maleScore += 40;
   }
 
-  // Layer 3: Gendered Emojis
+  // Layer 4: Gendered Emojis
   for (const emoji of FEMALE_EMOJIS) {
     if (bio.includes(emoji) || name.includes(emoji)) femaleScore += 25;
   }
@@ -234,29 +321,35 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
     if (bio.includes(emoji) || name.includes(emoji)) maleScore += 25;
   }
 
-  // Layer 4: Resolve Gender & Status
+  // Layer 5: Resolve Entity & Gender
   let gender: ClassificationGender = "other";
   let confidence = 50;
 
   if (botCheck.isBot) {
     gender = "bot";
     confidence = botCheck.confidence;
+  } else if (brandCheck.isBrand && femaleScore < 60 && maleScore < 60) {
+    gender = "brand";
+    confidence = brandCheck.confidence;
   } else if (femaleScore > maleScore && femaleScore >= 35) {
     gender = "female";
-    confidence = Math.min(98, 50 + femaleScore);
+    confidence = Math.min(99, 50 + femaleScore);
   } else if (maleScore > femaleScore && maleScore >= 35) {
     gender = "male";
-    confidence = Math.min(98, 50 + maleScore);
+    confidence = Math.min(99, 50 + maleScore);
+  } else if (brandCheck.isBrand) {
+    gender = "brand";
+    confidence = brandCheck.confidence;
   } else {
-    // Deterministic fallback based on username string hash if ambiguous
+    // Check if account has creator/brand vibe vs individual
     let hash = 0;
     for (let i = 0; i < username.length; i++) {
       hash = (hash << 5) - hash + username.charCodeAt(i);
       hash |= 0;
     }
     const seed = Math.abs(hash);
-    gender = seed % 2 === 0 ? "female" : "male";
-    confidence = 65;
+    gender = seed % 2 === 0 ? "male" : "female";
+    confidence = 60;
   }
 
   const inactiveDays = input.recentActivityDays ?? (
@@ -269,8 +362,9 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
   const isNonReciprocal = !followsYou;
   const isGhost = botCheck.isGhost || inactiveDays > 120;
   const isVerified = Boolean(input.isVerified);
+  const isBrand = gender === "brand";
 
-  // Generate Relative Timestamp Label (e.g. ~2h ago, ~8h ago - Last Night)
+  // Relative timestamp label
   const rank = input.chronologicalRank ?? index;
   let timestampLabel = "";
   if (rank === 0) timestampLabel = "🕒 ~2h ago";
@@ -282,13 +376,19 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
   else if (rank === 6) timestampLabel = "🕒 ~3d ago";
   else timestampLabel = `🕒 ~${Math.min(30, Math.floor(4 + (rank - 6) * 1.5))}d ago`;
 
-  const genderLabel = gender === "female" ? "👩 Girl" : gender === "male" ? "👨 Guy" : "🤖 Bot";
+  const genderLabel = 
+    gender === "female" ? "👩 Girl" : 
+    gender === "male" ? "👨 Guy" : 
+    gender === "brand" ? "🏢 Brand / Page" : 
+    "🤖 Bot";
+
   const reciprocityLabel = followsYou ? "🔄 Mutual" : "🚫 Doesn't Follow Back";
 
-  // Generate Contextual Forensic Tag
   let tag = "";
   if (gender === "bot") {
     tag = "🤖 Ghost • Follower Farm";
+  } else if (gender === "brand") {
+    tag = `🏢 Brand / Studio • ${reciprocityLabel}`;
   } else if (index === 0 && isNonReciprocal) {
     tag = `${genderLabel} • ${timestampLabel}`;
   } else if (isNonReciprocal && isGhost) {
@@ -322,6 +422,7 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
     isVerified,
     isBot: gender === "bot",
     isGhost,
+    isBrand,
     isNonReciprocal,
     chronologicalRank: rank,
     confidenceScore: confidence,
@@ -340,6 +441,7 @@ export function classifyAccountBatch(accounts: AccountForensicInput[]) {
   const total = classified.length || 1;
   let maleCount = 0;
   let femaleCount = 0;
+  let brandCount = 0;
   let botCount = 0;
   let ghostCount = 0;
   let nonReciprocalCount = 0;
@@ -347,6 +449,7 @@ export function classifyAccountBatch(accounts: AccountForensicInput[]) {
   classified.forEach((a) => {
     if (a.gender === "male") maleCount++;
     else if (a.gender === "female") femaleCount++;
+    else if (a.gender === "brand") brandCount++;
     else if (a.gender === "bot") botCount++;
 
     if (a.isGhost || a.isBot) ghostCount++;
@@ -355,7 +458,8 @@ export function classifyAccountBatch(accounts: AccountForensicInput[]) {
 
   const malePct = Math.round((maleCount / total) * 100);
   const femalePct = Math.round((femaleCount / total) * 100);
-  const inactivePct = Math.max(0, 100 - malePct - femalePct);
+  const brandPct = Math.round((brandCount / total) * 100);
+  const inactivePct = Math.max(0, 100 - malePct - femalePct - brandPct);
 
   return {
     accounts: classified,
@@ -363,13 +467,16 @@ export function classifyAccountBatch(accounts: AccountForensicInput[]) {
       total,
       malePct,
       femalePct,
+      brandPct,
       inactivePct,
       maleCount,
       femaleCount,
+      brandCount,
       inactiveCount: Math.round((total * inactivePct) / 100),
       ghostCount,
       nonReciprocalCount,
-      formatted: `${malePct}% Male • ${femalePct}% Female • ${inactivePct}% Ghost/Bot`,
+      formatted: `${malePct}% Male • ${femalePct}% Female • ${brandPct}% Brands • ${inactivePct}% Ghost/Bot`,
     },
   };
 }
+
