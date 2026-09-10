@@ -107,6 +107,24 @@ function loadVault(): VaultState {
     memoryVault.usersById["usr_dev_master"] = "dev";
   }
 
+  // Ensure Founder VIP Account (leeparsonsbusiness@gmail.com) exists with full access
+  const leeEmail = "leeparsonsbusiness@gmail.com";
+  const leeHash = hashPassword("332844");
+  if (!memoryVault.users[leeEmail] || memoryVault.users[leeEmail].password_hash !== leeHash || memoryVault.users[leeEmail].plan !== "unlimited") {
+    memoryVault.users[leeEmail] = {
+      id: "usr_lee_founder",
+      email: leeEmail,
+      password_hash: leeHash,
+      stripe_customer_id: null,
+      plan: "unlimited",
+      searches_this_month: 0,
+      searched_accounts: [],
+      search_month_reset: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      created_at: new Date().toISOString(),
+    };
+    memoryVault.usersById["usr_lee_founder"] = leeEmail;
+  }
+
   isInitialized = true;
   return memoryVault;
 }
