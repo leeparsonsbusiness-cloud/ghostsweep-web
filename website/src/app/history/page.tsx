@@ -20,7 +20,8 @@ import {
   CheckCircle,
   ArrowRight,
   User,
-  AlertCircle
+  AlertCircle,
+  CreditCard
 } from "lucide-react";
 import { AuditHistoryEntry, UserPlan } from "@/lib/types";
 
@@ -135,6 +136,41 @@ export default function HistoryPage() {
     setIsUpgradeOpen(true);
   };
 
+  const [isPortalLoading, setIsPortalLoading] = useState(false);
+
+  const handleManageSubscription = async () => {
+    if (!userEmail) return;
+    setIsPortalLoading(true);
+    try {
+      const res = await fetch("/api/stripe/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail }),
+      });
+      const json = await res.json();
+      if (json.success && json.url) {
+        window.location.href = json.url;
+      } else if (json.cancelUrl) {
+        if (confirm("Would you like to cancel your GhostSweep Pro recurring subscription? You will retain access until the end of your billing cycle.")) {
+          const cancelRes = await fetch("/api/stripe/cancel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: userEmail }),
+          });
+          const cancelJson = await cancelRes.json();
+          alert(cancelJson.message || "Subscription cancelled.");
+          loadUserHistory();
+        }
+      } else {
+        alert(json.error || "Unable to open billing portal.");
+      }
+    } catch (err: any) {
+      alert("Billing portal error: " + err.message);
+    } finally {
+      setIsPortalLoading(false);
+    }
+  };
+
   const isWeeklyLimitReached = userPlan === "standard" && searchesUsed >= 10;
   const isFreeLimitReached = userPlan === "free" && searchesUsed >= 1;
 
@@ -197,6 +233,21 @@ export default function HistoryPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {userPlan === "unlimited" && (
+              <button
+                onClick={handleManageSubscription}
+                disabled={isPortalLoading}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              >
+                {isPortalLoading ? (
+                  <span className="w-3.5 h-3.5 border-2 border-zinc-500 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <CreditCard className="w-3.5 h-3.5" />
+                )}
+                <span>Manage / Cancel Subscription</span>
+              </button>
+            )}
+
             {isWeeklyLimitReached && (
               <button
                 onClick={handleUpgradeClick}

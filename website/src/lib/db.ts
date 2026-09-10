@@ -13,6 +13,7 @@ export {
   type RadarActivityEvent
 } from "./types";
 import { isVipEmail, isBlockedEmail, UserPlan, AuditHistoryEntry, TrackedTarget, RadarActivityEvent } from "./types";
+import { getSupabaseClient, isSupabaseConfigured } from "./supabase";
 
 export interface DbUser {
   id: string;
@@ -177,6 +178,79 @@ function persistVault(): void {
 }
 
 /**
+ * Sync helpers for permanent cloud PostgreSQL storage via Supabase
+ */
+async function syncUserToSupabase(user: DbUser) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  try {
+    await supabase.from("users").upsert({
+      id: user.id,
+      email: user.email,
+      password_hash: user.password_hash,
+      stripe_customer_id: user.stripe_customer_id,
+      plan: user.plan,
+      searches_this_week: user.searches_this_week || 0,
+      searches_this_month: user.searches_this_month || 0,
+      searched_accounts: user.searched_accounts || [],
+      search_week_reset: user.search_week_reset,
+      search_month_reset: user.search_month_reset,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "email" });
+  } catch (err: any) {
+    console.warn("[Supabase Sync] User error:", err.message);
+  }
+}
+
+async function syncUnlockedAuditToSupabase(userEmail: string, targetUsername: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  try {
+    await supabase.from("unlocked_audits").upsert({
+      user_email: userEmail.toLowerCase(),
+      target_username: targetUsername.toLowerCase(),
+      unlocked_at: new Date().toISOString(),
+    }, { onConflict: "user_email,target_username" });
+  } catch (err: any) {
+    console.warn("[Supabase Sync] Unlocked audit error:", err.message);
+  }
+}
+
+async function syncSnapshotToSupabase(targetUsername: string, targetType: string, usernames: string[]) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  try {
+    await supabase.from("follows_snapshots").insert({
+      target_username: targetUsername.toLowerCase(),
+      target_type: targetType,
+      usernames,
+      snapshot_count: usernames.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.warn("[Supabase Sync] Snapshot error:", err.message);
+  }
+}
+
+async function syncSearchHistoryToSupabase(entry: { user_email: string; target_username: string; target_name?: string; target_avatar?: string; is_unlocked?: boolean; target_type?: string }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  try {
+    await supabase.from("search_history").insert({
+      user_email: entry.user_email.toLowerCase(),
+      target_username: entry.target_username.toLowerCase(),
+      target_name: entry.target_name,
+      target_avatar: entry.target_avatar,
+      target_type: entry.target_type || "following",
+      is_unlocked: Boolean(entry.is_unlocked),
+      searched_at: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.warn("[Supabase Sync] History error:", err.message);
+  }
+}
+
+/**
  * Normalizes username (lowercase, trimmed, strip '@')
  */
 export function normalizeTargetUsername(raw: string): string {
@@ -246,6 +320,7 @@ export function registerUser(
   memoryVault.users[cleanEmail] = newUser;
   memoryVault.usersById[id] = cleanEmail;
   persistVault();
+  syncUserToSupabase(newUser).catch(() => {});
 
   return { success: true, user: newUser };
 }
@@ -311,6 +386,14 @@ export function authenticateUser(
   }
 
   return { success: true, user: existing };
+}
+
+/**
+ * Get user by email
+ */
+export function getUserByEmail(email: string): DbUser | null {
+  loadVault();
+  return memoryVault.users[email.trim().toLowerCase()] || null;
 }
 
 /**
@@ -559,6 +642,8 @@ export function unlockAudit(emailOrUserId: string, targetUsername: string): bool
   }
 
   persistVault();
+  syncUnlockedAuditToSupabase(email, cleanTarget).catch(() => {});
+  syncUserToSupabase(user).catch(() => {});
   return true;
 }
 
@@ -654,6 +739,14 @@ export function recordAuditHistory(
 
   memoryVault.auditHistory[email] = filtered.slice(0, 50);
   persistVault();
+  syncSearchHistoryToSupabase({
+    user_email: email,
+    target_username: cleanTarget,
+    target_name: entry.name || cleanTarget,
+    target_avatar: entry.avatar,
+    is_unlocked: isUnlocked,
+    target_type: entry.targetType,
+  }).catch(() => {});
 }
 
 /**
@@ -742,6 +835,7 @@ export function recordFollowsSnapshot(
 
   memoryVault.followsSnapshots[key] = history.slice(-20);
   persistVault();
+  syncSnapshotToSupabase(cleanTarget, targetType, currentList).catch(() => {});
 
   return {
     newFollows,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrCreateUser, createMagicToken, getUserUnlockedAudits } from "@/lib/db";
+import { sendMagicLinkEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,10 +18,14 @@ export async function POST(req: NextRequest) {
     const token = createMagicToken(email);
     const unlockedAudits = getUserUnlockedAudits(email);
 
-    // In a production environment, send email via Resend/Postmark/SendGrid
-    const origin = req.headers.get("origin") || "http://localhost:3000";
+    const origin = req.headers.get("origin") || "https://www.ghostsweeper.info";
     const magicUrl = `${origin}/?auth_token=${token}&email=${encodeURIComponent(email)}`;
     console.log(`[GhostSweep Magic Link] Generated for ${email}: ${magicUrl}`);
+
+    // Dispatch real email via Resend
+    await sendMagicLinkEmail(email, token, origin).catch((e) => {
+      console.warn("[Magic Link] Email send notice:", e.message);
+    });
 
     return NextResponse.json({
       success: true,

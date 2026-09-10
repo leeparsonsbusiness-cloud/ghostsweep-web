@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { unlockAudit, getOrCreateUser, setUserPlan, UserPlan } from "@/lib/db";
+import { sendPurchaseConfirmationEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -39,7 +40,16 @@ export async function POST(req: NextRequest) {
           unlockAudit(email, targetUsername);
         }
         console.log(`[Stripe Webhook] Successfully activated ${plan} plan for user ${email}, unlocked target: @${targetUsername}`);
+
+        // Dispatch purchase confirmation email
+        sendPurchaseConfirmationEmail(email, targetUsername, plan === "unlimited").catch((e) => {
+          console.warn("[Stripe Webhook] Purchase confirmation email notice:", e.message);
+        });
       }
+    } else if (event.type === "customer.subscription.deleted") {
+      const subscription = event.data.object as Stripe.Subscription;
+      const customerId = typeof subscription.customer === "string" ? subscription.customer : undefined;
+      console.log(`[Stripe Webhook] Subscription cancelled for customer ${customerId}`);
     }
 
     return NextResponse.json({ received: true });

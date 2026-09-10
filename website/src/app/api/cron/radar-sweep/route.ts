@@ -8,6 +8,7 @@ import {
   RadarActivityEvent 
 } from "@/lib/db";
 import { classifyAccount } from "@/lib/classifier";
+import { sendNewFollowAlertEmail } from "@/lib/email";
 
 export const maxDuration = 300; // 5 minutes for cron execution
 export const dynamic = "force-dynamic";
@@ -165,9 +166,26 @@ async function handleRadarSweep(req: NextRequest) {
           recordActivityEvents(target.targetUsername, events);
         }
 
+        // Dispatch instant email alert to owner when new follows are detected
+        if (diff.newFollows.length > 0 && target.userEmail && target.userEmail.includes("@")) {
+          const formattedFollows = diff.newFollows.map((uname) => {
+            const rawItem: any = follows.find((f: any) => (f.username || f.handle || "").toLowerCase().replace(/^@/, "") === uname) || {};
+            return {
+              username: uname,
+              name: rawItem.fullName || rawItem.name,
+              avatar: rawItem.profilePicUrlHD || rawItem.profilePicUrl,
+            };
+          });
+
+          sendNewFollowAlertEmail(target.userEmail, target.targetUsername, formattedFollows).catch((e) => {
+            console.warn(`[Radar Cron] Email dispatch notice for ${target.userEmail}:`, e.message);
+          });
+        }
+
+        const safeFrequencyHours = Math.max(12, target.frequencyHours || 12);
         const newDetectedCount = (target.totalNewFollowsDetected || 0) + diff.newFollows.length;
         const newUnfollowedCount = (target.totalUnfollowsDetected || 0) + diff.unfollowed.length;
-        const nextScanAt = new Date(now.getTime() + target.frequencyHours * 60 * 60 * 1000).toISOString();
+        const nextScanAt = new Date(now.getTime() + safeFrequencyHours * 60 * 60 * 1000).toISOString();
 
         updateTrackedTarget(target.userEmail, target.targetUsername, {
           lastScannedAt: nowIso,
