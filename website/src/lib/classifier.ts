@@ -38,7 +38,7 @@ const MALE_NAMES = new Set([
   // Popular English & Global
   "liam", "noah", "oliver", "william", "elijah", "james", "benjamin", "lucas", "mason", "ethan",
   "alexander", "henry", "jacob", "michael", "daniel", "logan", "jackson", "sebastian", "jack", "aiden",
-  "owen", "samuel", "matthew", "joseph", "levi", "mateo", "david", "john", "wyatt", "carter",
+  "owen", "samuel", "sam", "matthew", "joseph", "levi", "mateo", "david", "john", "wyatt", "carter",
   "julian", "luke", "grayson", "isaac", "jayden", "theodore", "gabriel", "anthony", "dylan", "leo",
   "lincoln", "jaxon", "asher", "christopher", "josiah", "andrew", "thomas", "joshua", "ezra", "hudson",
   "charles", "caleb", "isaiah", "ryan", "nathan", "adrian", "christian", "maverick", "colton", "elias",
@@ -47,7 +47,7 @@ const MALE_NAMES = new Set([
   "ian", "carson", "axel", "jaxson", "dominic", "leonardo", "luca", "austin", "jordan", "adam",
   "xavier", "jose", "jace", "everett", "declan", "evan", "kayden", "parker", "wesley", "kai",
   "brayden", "bryson", "weston", "jason", "micah", "sawyer", "arthur", "vincent", "silas", "brandon",
-  "justin", "tyler", "kevin", "brian", "eric", "scott", "steven", "paul", "mark", "richard",
+  "brody", "justin", "tyler", "kevin", "brian", "eric", "scott", "steven", "paul", "mark", "richard",
   "george", "kenneth", "edward", "brian", "ronald", "anthony", "donald", "jeffrey", "marcus", "travis",
   "marco", "francesco", "alessandro", "andrea", "lorenzo", "matteo", "gabriele", "riccardo", "davide",
   "alejandro", "carlos", "javier", "diego", "manuel", "alvaro", "sergio", "pablo", "fernando", "jorge",
@@ -119,26 +119,34 @@ export interface ClassifiedAccount {
 }
 
 /**
- * Extract clean given/first name token from full display name or username
+ * Extract tokens from full display name and username
  */
-function extractFirstName(name: string, username: string): string {
+function extractNameTokens(name: string, username: string): string[] {
+  const tokens: string[] = [];
+
   if (name && name.trim()) {
     const clean = name
       .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, "")
       .replace(/^(dr|mr|mrs|ms|coach|chef|dj|fit|official)\.?\s+/i, "")
       .trim();
-    const parts = clean.split(/[\s•·|_\-/,]+/);
-    if (parts.length > 0 && parts[0].length >= 2) {
-      return parts[0].toLowerCase().replace(/[^a-z]/g, "");
+    const parts = clean.split(/[\s•·|_\-/,.]+/);
+    for (const part of parts) {
+      const normalized = part.toLowerCase().replace(/[^a-z]/g, "");
+      if (normalized.length >= 2) {
+        tokens.push(normalized);
+      }
     }
   }
 
-  const userParts = username.split(/[._\-\d]+/);
-  if (userParts.length > 0 && userParts[0].length >= 3) {
-    return userParts[0].toLowerCase().replace(/[^a-z]/g, "");
+  const userParts = username.split(/[\s•·|_\-/,.\d]+/);
+  for (const part of userParts) {
+    const normalized = part.toLowerCase().replace(/[^a-z]/g, "");
+    if (normalized.length >= 2 && !tokens.includes(normalized)) {
+      tokens.push(normalized);
+    }
   }
 
-  return "";
+  return tokens;
 }
 
 /**
@@ -194,23 +202,20 @@ export function evaluateBotHeuristics(input: AccountForensicInput): { isBot: boo
   };
 }
 
-/**
- * Classifies an Instagram account into Gender (Male/Female/Other/Bot) with high accuracy
- */
 export function classifyAccount(input: AccountForensicInput, index: number = 0): ClassifiedAccount {
   const username = input.username.trim();
   const name = input.name || username;
   const bio = input.bio || "";
-  const firstName = extractFirstName(name, username);
+  const nameTokens = extractNameTokens(name, username);
   const botCheck = evaluateBotHeuristics(input);
 
   let femaleScore = 0;
   let maleScore = 0;
 
   // Layer 1: Lexicon Name Match
-  if (firstName) {
-    if (FEMALE_NAMES.has(firstName)) femaleScore += 55;
-    if (MALE_NAMES.has(firstName)) maleScore += 55;
+  for (const token of nameTokens) {
+    if (FEMALE_NAMES.has(token)) femaleScore += 55;
+    if (MALE_NAMES.has(token)) maleScore += 55;
   }
 
   // Layer 2: Bio Regex & Pronouns

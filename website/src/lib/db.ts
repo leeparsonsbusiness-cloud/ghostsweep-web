@@ -167,8 +167,11 @@ export function registerUser(
   const isVip = isVipEmail(cleanEmail);
 
   if (existing) {
+    if (existing.password_hash && cleanEmail !== "dev") {
+      return { success: false, error: "An account with this email already exists. Please switch to Sign In." };
+    }
     if (isVip) existing.plan = "unlimited";
-    if (passwordHash && !existing.password_hash) {
+    if (passwordHash) {
       existing.password_hash = passwordHash;
       persistVault();
     }
@@ -217,7 +220,10 @@ export function authenticateUser(
 
   const existing = memoryVault.users[cleanEmail];
   if (!existing) {
-    return registerUser(cleanEmail, password);
+    return { 
+      success: false, 
+      error: "No account found with this email. Please switch to the 'Create Account' tab to register." 
+    };
   }
 
   const isVip = isVipEmail(cleanEmail);

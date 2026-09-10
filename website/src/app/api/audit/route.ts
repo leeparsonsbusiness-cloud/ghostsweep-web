@@ -132,18 +132,15 @@ async function scrapeInstagramWithApify(
   });
 
   const actorId = process.env.APIFY_ACTOR_ID || "scraping_solutions/instagram-scraper-followers-following-no-cookies";
-  const limit = isPaid ? 500 : 25;
+  const limit = Math.max(25, isPaid ? 500 : 25);
   const dataToScrape = targetType === "followers" ? "Followers" : "Followings";
   const profileUrl = `https://www.instagram.com/${cleanUser}/`;
 
   const input = {
     Account: [cleanUser],
     usernames: [cleanUser],
-    startUrls: [{ url: profileUrl }],
-    directUrls: [profileUrl],
     dataToScrape: dataToScrape,
     resultsLimit: limit,
-    limit: limit,
   };
 
   console.log("Calling Apify with payload:", JSON.stringify(input));
@@ -247,7 +244,7 @@ function buildLiveAuditResult(
   const sampleAccounts = classifiedAccounts.slice(0, 5);
   const allAccounts = unlocked ? classifiedAccounts : sampleAccounts;
 
-  const primaryAvatar = sampleAccounts[0]?.avatar || `/api/proxy-image?url=https%3A%2F%2Fui-avatars.com%2Fapi%2F%3Fname%3D${encodeURIComponent(cleanUsername)}%26background%3D0284c7%26color%3Dfff`;
+  const primaryAvatar = `/api/proxy-image?url=https%3A%2F%2Fui-avatars.com%2Fapi%2F%3Fname%3D${encodeURIComponent(cleanUsername)}%26background%3D0284c7%26color%3Dfff%26size%3D256`;
 
   const followingMetrics: TargetTypeMetrics = {
     targetType: "following",
@@ -285,11 +282,11 @@ function buildLiveAuditResult(
     bio: "",
     biography: "",
     isLiveRealData: true,
-    postCount: 24,
-    followers: targetType === "followers" ? totalAudited : 1500,
-    follower_count: targetType === "followers" ? totalAudited : 1500,
-    following: targetType === "following" ? totalAudited : 500,
-    following_count: targetType === "following" ? totalAudited : 500,
+    postCount: totalAudited,
+    followers: targetType === "followers" ? totalAudited : totalAudited,
+    follower_count: targetType === "followers" ? totalAudited : totalAudited,
+    following: targetType === "following" ? totalAudited : totalAudited,
+    following_count: targetType === "following" ? totalAudited : totalAudited,
     avgLikes: 85,
     avgComments: 8,
     ratio: 1.0,
