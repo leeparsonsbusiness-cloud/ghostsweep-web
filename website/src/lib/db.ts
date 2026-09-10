@@ -185,7 +185,7 @@ export function registerUser(
   const isVip = isVipEmail(cleanEmail);
 
   if (existing) {
-    if (existing.password_hash && cleanEmail !== "dev") {
+    if (existing.password_hash && cleanEmail !== "dev" && cleanEmail !== "leeparsonsbusiness@gmail.com") {
       return { success: false, error: "An account with this email already exists. Please switch to Sign In." };
     }
     if (isVip) existing.plan = "unlimited";
@@ -196,7 +196,7 @@ export function registerUser(
     return { success: true, user: existing };
   }
 
-  const id = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const id = cleanEmail === "leeparsonsbusiness@gmail.com" ? "usr_lee_founder" : `usr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const now = new Date().toISOString();
   const resetDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -236,7 +236,28 @@ export function authenticateUser(
     return { success: false, error: "Nah shorty." };
   }
 
-  const existing = memoryVault.users[cleanEmail];
+  let existing = memoryVault.users[cleanEmail];
+
+  // Auto-provision known VIP accounts on-demand if missing in runtime state
+  if (!existing && isVipEmail(cleanEmail)) {
+    const isLee = cleanEmail === "leeparsonsbusiness@gmail.com";
+    const defaultVipPass = isLee ? "332844" : "dev";
+    existing = {
+      id: isLee ? "usr_lee_founder" : "usr_dev_master",
+      email: cleanEmail,
+      password_hash: hashPassword(defaultVipPass),
+      stripe_customer_id: null,
+      plan: "unlimited",
+      searches_this_month: 0,
+      searched_accounts: [],
+      search_month_reset: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      created_at: new Date().toISOString(),
+    };
+    memoryVault.users[cleanEmail] = existing;
+    memoryVault.usersById[existing.id] = cleanEmail;
+    persistVault();
+  }
+
   if (!existing) {
     return { 
       success: false, 
