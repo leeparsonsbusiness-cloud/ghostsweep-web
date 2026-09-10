@@ -32,6 +32,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   onOpenLegal 
 }) => {
   const [email, setEmail] = useState(userEmail || "");
+  const [selectedPlan, setSelectedPlan] = useState<"standard" | "unlimited">("standard");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -54,7 +55,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           email: email.trim(),
-          target_username: targetUsername || "alex.creator"
+          target_username: targetUsername || "theleeparsons",
+          plan: selectedPlan
         }),
       });
 
@@ -86,6 +88,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   };
 
+  const isUnlimited = selectedPlan === "unlimited";
+  const price = isUnlimited ? "$9.99" : "$4.99";
+
   return (
     <div id="checkout-modal-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-md rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 shadow-xl overflow-hidden transition-colors">
@@ -101,7 +106,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {!isSuccess ? (
           <div>
             {/* Header */}
-            <div className="flex items-center gap-3 mb-5">
+            <div className="flex items-center gap-3 mb-4">
               <div className="relative w-9 h-9 shrink-0">
                 <Image
                   src="/logo.png"
@@ -113,26 +118,60 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
               <div>
                 <h3 className="text-base font-bold text-zinc-900 dark:text-white">
-                  Unlock Full Activity History
+                  Unlock Forensic Intelligence
                 </h3>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Instant chronological follow forensics &amp; timestamps for @{targetUsername || "alex.creator"}
+                  Instant chronological order, timestamps &amp; hidden follows for @{targetUsername || "theleeparsons"}
                 </p>
               </div>
             </div>
 
+            {/* Plan Selection Tabs */}
+            <div className="grid grid-cols-2 gap-2 p-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-xl mb-4 border border-zinc-200 dark:border-zinc-700">
+              <button
+                type="button"
+                onClick={() => setSelectedPlan("standard")}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 ${
+                  !isUnlimited
+                    ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm border border-zinc-200 dark:border-zinc-700"
+                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+                }`}
+              >
+                <span>Single Unlock</span>
+                <span className="text-[11px] font-mono text-sky-600 dark:text-sky-400">$4.99 One-Time</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedPlan("unlimited")}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 ${
+                  isUnlimited
+                    ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm border border-zinc-200 dark:border-zinc-700"
+                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+                }`}
+              >
+                <span className="flex items-center gap-1">
+                  <span>48-Hour Pass</span>
+                  <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-500 font-bold">HOT</span>
+                </span>
+                <span className="text-[11px] font-mono text-sky-600 dark:text-sky-400">$9.99 One-Time</span>
+              </button>
+            </div>
+
             {/* Order Summary Box */}
-            <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 mb-5">
-              <div className="flex items-center justify-between text-xs pb-2.5 border-b border-zinc-200 dark:border-zinc-750">
-                <span className="text-zinc-600 dark:text-zinc-300 font-medium">GhostSweep Standard Plan</span>
-                <span className="text-zinc-900 dark:text-white font-bold font-mono text-sm">$3.99<span className="text-[10px] text-zinc-400 font-normal"> / mo</span></span>
+            <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 mb-4">
+              <div className="flex items-center justify-between text-xs pb-2.5 border-b border-zinc-200 dark:border-zinc-700">
+                <span className="text-zinc-600 dark:text-zinc-300 font-medium">
+                  {!isUnlimited ? `Single Audit: @${targetUsername || "profile"}` : "48-Hour Unlimited Weekend Pass"}
+                </span>
+                <span className="text-zinc-900 dark:text-white font-bold font-mono text-sm">{price}</span>
               </div>
               <div className="flex items-center justify-between text-[11px] pt-2 text-zinc-500 dark:text-zinc-400">
                 <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  Instant Web Access
+                  Instant Web Unlock
                 </span>
-                <span>Monthly Subscription</span>
+                <span className="font-semibold text-sky-600 dark:text-sky-400">One-Time (No Subscription)</span>
               </div>
             </div>
 
@@ -189,7 +228,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </span>
                 ) : (
                   <>
-                    <span>Unlock Full Activity History ($3.99/mo) ➔</span>
+                    <span>Unlock Forensic Intelligence ({price}) ➔</span>
                   </>
                 )}
               </button>

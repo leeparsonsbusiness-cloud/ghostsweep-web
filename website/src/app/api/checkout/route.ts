@@ -17,11 +17,11 @@ export async function POST(req: NextRequest) {
     const targetUsername = normalizeTargetUsername(rawTarget);
     const plan = body.plan === "unlimited" ? "unlimited" : "standard";
     const isUnlimited = plan === "unlimited";
-    const amount = isUnlimited ? 999 : 399; // $9.99 or $3.99
-    const planName = isUnlimited ? "GhostSweep Unlimited Plan" : "GhostSweep Standard Plan";
+    const amount = isUnlimited ? 999 : 499; // $9.99 48h pass or $4.99 single unlock
+    const planName = isUnlimited ? "GhostSweep 48-Hour All-Access Pass" : "GhostSweep Single Audit Unlock";
     const planDesc = isUnlimited
-      ? "Unlimited monthly Instagram forensic account searches & deep intelligence reports."
-      : "Monthly Instagram forensic account audits & deep intelligence reports.";
+      ? "Unlimited 48-hour Instagram forensic account searches & deep intelligence reports. One-time payment."
+      : `Complete chronological follow forensics, late-night radar, and all timestamps for @${targetUsername}. One-time payment.`;
 
     if (!email || !email.includes("@")) {
       return NextResponse.json(
@@ -41,7 +41,6 @@ export async function POST(req: NextRequest) {
       });
 
       const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
         line_items: [
           {
             price_data: {
@@ -52,14 +51,11 @@ export async function POST(req: NextRequest) {
                 images: ["https://ghostsweep.info/og-image.png"],
               },
               unit_amount: amount,
-              recurring: {
-                interval: "month",
-              },
             },
             quantity: 1,
           },
         ],
-        mode: "subscription",
+        mode: "payment",
         customer_email: email,
         metadata: {
           user_id: user.id,

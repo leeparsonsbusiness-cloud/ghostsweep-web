@@ -68,7 +68,7 @@ export default function Home() {
       if (unlockedParam === "true" && usernameParam) {
         const cleanTarget = usernameParam.replace(/^@/, "").toLowerCase();
         setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
-        trackPurchase(planParam || "standard", planParam === "unlimited" ? 9.99 : 3.99, cleanTarget);
+        trackPurchase(planParam || "standard", planParam === "unlimited" ? 9.99 : 4.99, cleanTarget);
         handleAuditSubmit(cleanTarget);
       } else if (usernameParam) {
         handleAuditSubmit(usernameParam);
@@ -190,7 +190,7 @@ export default function Home() {
   };
 
   const handleOpenCheckout = () => {
-    trackInitiateCheckout("standard", 3.99);
+    trackInitiateCheckout("standard", 4.99);
     setIsCheckoutOpen(true);
   };
 
@@ -230,7 +230,7 @@ export default function Home() {
     setUserEmail(email);
     localStorage.setItem("gs_user_email", email);
     setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
-    trackPurchase("standard", 3.99, cleanTarget);
+    trackPurchase("standard", 4.99, cleanTarget);
     if (auditData) {
       setAuditData({
         ...auditData,

@@ -102,13 +102,13 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           </div>
           <div>
             <h3 className="text-base sm:text-lg font-black text-zinc-900 dark:text-white flex items-center gap-1.5">
-              <span>Monthly Limit Reached</span>
+              <span>Limit Reached</span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 font-bold border border-amber-300 dark:border-amber-800 font-mono">
-                10/10
+                PASS
               </span>
             </h3>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Upgrade for unlimited monthly Instagram forensic audits
+              Unlock 48-hour unlimited forensic audits across any accounts
             </p>
           </div>
         </div>
@@ -118,18 +118,18 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-700 mb-3">
             <div className="flex items-center gap-1.5 text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">
               <InfinityIcon className="w-4 h-4 text-sky-500" />
-              <span>Unlimited Plan</span>
+              <span>48-Hour All-Access Pass</span>
             </div>
             <div className="text-right">
               <span className="text-base font-black text-zinc-900 dark:text-white font-mono">$9.99</span>
-              <span className="text-[10px] text-zinc-400 font-normal"> / month</span>
+              <span className="text-[10px] text-sky-600 dark:text-sky-400 font-semibold block">One-Time</span>
             </div>
           </div>
 
           <ul className="space-y-2 text-xs text-zinc-600 dark:text-zinc-300">
             <li className="flex items-center gap-2">
               <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span className="font-semibold text-zinc-800 dark:text-zinc-100">Unlimited Monthly Account Audits</span>
+              <span className="font-semibold text-zinc-800 dark:text-zinc-100">Unlimited 48-Hour Account Audits</span>
             </li>
             <li className="flex items-center gap-2">
               <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
@@ -180,14 +180,14 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
               </span>
             ) : (
               <>
-                <span>Upgrade to Unlimited ($9.99/mo) ➔</span>
+                <span>Get 48-Hour Weekend Pass ($9.99) ➔</span>
               </>
             )}
           </button>
         </form>
 
         <p className="text-[11px] text-center text-zinc-400 dark:text-zinc-500 mt-3 leading-relaxed">
-          Cancel anytime with 1 click. Covered by our 100% money-back guarantee.
+          One-time payment. Never auto-renews. Covered by our 100% money-back guarantee.
         </p>
       </div>
     </div>

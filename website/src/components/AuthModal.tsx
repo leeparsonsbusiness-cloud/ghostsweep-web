@@ -341,7 +341,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                           <Crown className="w-3.5 h-3.5" /> VIP Founder Unlimited ($0/mo)
                         </span>
                       ) : (
-                        <span>Standard Active ($3.99/mo)</span>
+                        <span>Standard Active ($4.99)</span>
                       )}
                     </span>
                   </div>

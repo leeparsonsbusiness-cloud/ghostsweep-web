@@ -67,7 +67,7 @@ export default function ReportPage() {
 
       if (unlockedParam === "true") {
         setUnlockedAudits((prev) => Array.from(new Set([...prev, targetUser])));
-        trackPurchase(planParam || "standard", planParam === "unlimited" ? 9.99 : 3.99, targetUser);
+        trackPurchase(planParam || "standard", planParam === "unlimited" ? 9.99 : 4.99, targetUser);
       }
 
       const activeEmail = emailParam || localStorage.getItem("gs_user_email");
@@ -159,7 +159,7 @@ export default function ReportPage() {
 
   const handleToggleTheme = () => setIsDark((prev) => !prev);
   const handleOpenCheckout = () => {
-    trackInitiateCheckout("standard", 3.99);
+    trackInitiateCheckout("standard", 4.99);
     setIsCheckoutOpen(true);
   };
   const handleCloseCheckout = () => setIsCheckoutOpen(false);
@@ -189,7 +189,7 @@ export default function ReportPage() {
     setUserEmail(email);
     localStorage.setItem("gs_user_email", email);
     setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
-    trackPurchase("standard", 3.99, cleanTarget);
+    trackPurchase("standard", 4.99, cleanTarget);
     if (auditData) {
       setAuditData({
         ...auditData,

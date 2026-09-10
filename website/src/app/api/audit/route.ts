@@ -354,6 +354,13 @@ export async function POST(req: NextRequest) {
 
     const unlocked = isAuditUnlocked(userEmail, cleanUsername);
 
+    // Check cache first
+    const cached = getAuditCache(cleanUsername, targetType);
+    if (cached) {
+      cached.isUnlocked = unlocked;
+      return NextResponse.json({ success: true, data: cached });
+    }
+
     // Enforce Plan & Search Limits
     if (userEmail) {
       const usage = getUserPlanAndUsage(userEmail);
@@ -363,7 +370,7 @@ export async function POST(req: NextRequest) {
             {
               success: false,
               error: "MONTHLY_LIMIT_REACHED",
-              details: "You have reached your 10 monthly account audits limit on the Standard Plan. Upgrade to Unlimited for $9.99/month.",
+              details: "You have reached your 10 account audits limit on the Standard Plan. Upgrade to the 48-Hour Weekend Pass for $9.99.",
               limitReached: true,
               plan: "standard",
               searchesUsed: usage.searchesUsed,
@@ -376,7 +383,7 @@ export async function POST(req: NextRequest) {
             {
               success: false,
               error: "FREE_LIMIT_REACHED",
-              details: "You have reached your 5 free searches limit. Unlock full access for $3.99/month.",
+              details: "You have reached your 5 free searches limit. Unlock full report access for $4.99.",
               limitReached: true,
               plan: "free",
               searchesUsed: usage.searchesUsed,
@@ -456,7 +463,7 @@ export async function GET(req: NextRequest) {
             {
               success: false,
               error: "MONTHLY_LIMIT_REACHED",
-              details: "You have reached your 10 monthly account audits limit on the Standard Plan. Upgrade to Unlimited for $9.99/month.",
+              details: "You have reached your 10 account audits limit on the Standard Plan. Upgrade to the 48-Hour Weekend Pass for $9.99.",
               limitReached: true,
               plan: "standard",
               searchesUsed: usage.searchesUsed,

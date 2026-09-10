@@ -340,67 +340,139 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
         {showBreakdown && (
           <div id="inspect-drawer" className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 animate-in fade-in">
             {!isUnlocked ? (
-              /* FREE STATE: Exactly 5 Activity Previews in Strict Chronological Order + Frosted Paywall */
+              /* FREE STATE: Blurred Teaser with Account #1 Visible, Accounts #2-5 Blurred, and Forensic Anomaly Alert */
               <>
-                {/* 5 Activity Preview Rows */}
                 <div className="space-y-2 mb-4">
-                  {previewAccounts.map((acc, index) => (
-                    <div
-                      key={acc.id || `preview-${index}`}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 text-xs gap-2"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <img
-                          src={acc.avatar}
-                          alt={acc.username}
-                          className="w-9 h-9 rounded-xl object-cover border border-zinc-200 dark:border-zinc-700 shrink-0"
-                          referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.username)}&background=0284c7&color=fff`;
-                          }}
-                        />
-                        <div className="text-left min-w-0">
-                          <div className="font-bold text-zinc-900 dark:text-white flex items-center gap-1.5 truncate">
-                            <span className="truncate">@{acc.username}</span>
-                            {acc.isVerified && (
-                              <span className="text-[10px] px-1 py-0.2 rounded bg-sky-100 dark:bg-sky-900/60 text-sky-600 dark:text-sky-400 font-semibold">
-                                ✓
+                  {previewAccounts.map((acc, index) => {
+                    const isFirst = index === 0;
+
+                    if (isFirst) {
+                      // ACCOUNT #1: 100% Clear & Verified Proof
+                      return (
+                        <div
+                          key={acc.id || `preview-${index}`}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-sky-50/50 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-800/80 text-xs gap-2 shadow-xs"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <img
+                              src={acc.avatar}
+                              alt={acc.username}
+                              className="w-10 h-10 rounded-xl object-cover border border-sky-300 dark:border-sky-700 shrink-0"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.username)}&background=0284c7&color=fff`;
+                              }}
+                            />
+                            <div className="text-left min-w-0">
+                              <div className="font-bold text-zinc-900 dark:text-white flex items-center gap-1.5 truncate">
+                                <span className="truncate">@{acc.username}</span>
+                                {acc.isVerified && (
+                                  <span className="text-[10px] px-1 py-0.2 rounded bg-sky-100 dark:bg-sky-900/60 text-sky-600 dark:text-sky-400 font-semibold">
+                                    ✓
+                                  </span>
+                                )}
+                                <span className="text-[10px] px-1.5 py-0.2 rounded-md font-bold bg-sky-100 dark:bg-sky-900/80 text-sky-700 dark:text-sky-300 shrink-0 font-mono">
+                                  #1 MOST RECENT
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate block">
+                                {acc.name || "Active Account"} &bull; {acc.gender === "female" ? "👩 Female" : "👨 Male"}
                               </span>
-                            )}
-                            <span className="text-[10px] px-1.5 py-0.2 rounded-md font-semibold bg-zinc-200/70 dark:bg-zinc-750 text-zinc-700 dark:text-zinc-300 shrink-0 font-mono">
-                              #{index + 1}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-start sm:self-auto">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                              LIVE FOLLOW
+                            </span>
+                            <span className="text-[10px] text-zinc-400 font-mono">
+                              {acc.timestampLabel || "Just now"}
                             </span>
                           </div>
-                          <span className="text-[11px] text-zinc-400 truncate block">
-                            {acc.name}
+                        </div>
+                      );
+                    }
+
+                    // ACCOUNTS #2 - #5: BLURRED TEASER
+                    return (
+                      <div
+                        key={acc.id || `preview-${index}`}
+                        className="relative flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-zinc-50/80 dark:bg-zinc-850/40 border border-zinc-200/80 dark:border-zinc-800/80 text-xs gap-2 overflow-hidden select-none pointer-events-none"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 filter blur-[5px] opacity-70">
+                          <div className="w-9 h-9 rounded-xl bg-zinc-300 dark:bg-zinc-700 shrink-0" />
+                          <div className="text-left min-w-0">
+                            <div className="font-bold text-zinc-900 dark:text-white flex items-center gap-1.5">
+                              <span>@{acc.username ? `${acc.username.slice(0, 2)}•••••••••` : "user••••••"}</span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded-md font-semibold bg-zinc-200 dark:bg-zinc-750 text-zinc-700 dark:text-zinc-300 font-mono">
+                                #{index + 1}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-zinc-400 block">
+                              •••••••• ••••••••
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 filter blur-[2px] opacity-70 self-start sm:self-auto">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
+                            LATE-NIGHT RADAR
                           </span>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
-                {/* Frosted Blurred Paywall Container directly underneath the 5 items */}
-                <div className="relative rounded-2xl overflow-hidden border border-zinc-300 dark:border-zinc-700/80 bg-zinc-100/90 dark:bg-zinc-800/60 p-6 text-center backdrop-blur-md shadow-md mt-2">
-                  <div className="flex flex-col items-center justify-center space-y-2.5">
-                    <div className="w-10 h-10 rounded-full bg-zinc-900 dark:bg-sky-500/20 flex items-center justify-center text-white dark:text-sky-400 shadow-sm">
-                      <Lock className="w-5 h-5 text-sky-400" />
+                {/* High-Converting Forensic Anomaly Box & $4.99 One-Time Paywall */}
+                <div className="relative rounded-2xl overflow-hidden border border-rose-200/80 dark:border-rose-900/60 bg-gradient-to-b from-rose-50/40 via-white to-zinc-50 dark:from-rose-950/20 dark:via-zinc-900 dark:to-zinc-900 p-6 text-center shadow-lg mt-3">
+                  <div className="flex flex-col items-center justify-center space-y-3">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-100 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs font-bold">
+                      <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                      <span>3 High-Activity Anomalies Detected</span>
                     </div>
-                    <div className="text-sm sm:text-base font-black text-zinc-900 dark:text-white">
-                      Unlock full chronological follow history &amp; gender filters for $3.99/mo
+
+                    <div className="text-base sm:text-lg font-black text-zinc-900 dark:text-white leading-snug max-w-md">
+                      Unlock Full Chronological Follow Report for @{auditData.username}
                     </div>
-                    <p className="text-xs text-zinc-600 dark:text-zinc-300 max-w-md">
-                      See all {totalCount.toLocaleString()} follows from newest to oldest, filter every follow by Girls/Guys, and full CSV export.
+
+                    {/* Forensic Teaser Bullets */}
+                    <div className="w-full max-w-sm text-left bg-white/80 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/80 rounded-xl p-3 space-y-2 text-xs text-zinc-700 dark:text-zinc-300 shadow-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-rose-500 font-bold">🚨</span>
+                        <span><b>3 late-night follows</b> flagged between 1:30 AM – 3:15 AM</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-amber-500 font-bold">⚠️</span>
+                        <span><b>2 non-reciprocal follows</b> (one-way lurking profiles)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sky-500 font-bold">🔍</span>
+                        <span><b>Recent additions scrambled</b> by Instagram app algorithm</span>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-md">
+                      See all {totalCount.toLocaleString()} accounts from newest to oldest, complete timestamps, girls/guys filters, and full CSV export.
                     </p>
 
                     <button
                       type="button"
                       id="unlock-list-cta-btn"
                       onClick={onOpenCheckout}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-black text-xs sm:text-sm text-zinc-950 bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg mt-2 cursor-pointer"
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3.5 px-8 rounded-xl font-black text-xs sm:text-sm text-zinc-950 bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg mt-1 cursor-pointer"
                     >
-                      <span>Unlock Full Activity History ($3.99/mo) ➔</span>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Unlock Full Report ($4.99 One-Time) ➔</span>
                     </button>
+
+                    <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] text-zinc-400 dark:text-zinc-500 pt-1 font-medium">
+                      <span>✓ One-Time Payment (No Subscription)</span>
+                      <span>&bull;</span>
+                      <span>✓ Apple Pay / Google Pay / Card</span>
+                      <span>&bull;</span>
+                      <span>✓ 100% Anonymous</span>
+                    </div>
                   </div>
                 </div>
               </>
@@ -512,7 +584,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
           <span>•</span>
           <span>Zero Passwords Required</span>
           <span>•</span>
-          <span className="text-sky-400 font-semibold">$1.99 One-Time Access</span>
+          <span className="text-sky-400 font-semibold">$4.99 One-Time Access</span>
         </div>
       )}
     </div>
