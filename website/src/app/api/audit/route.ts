@@ -16,8 +16,11 @@ import {
   recordUserSearch,
   recordFollowsSnapshot,
   getFollowsDiff,
-  DiffResult
+  recordActivityEvents,
+  DiffResult,
+  RadarActivityEvent
 } from "@/lib/db";
+
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -323,6 +326,52 @@ function buildLiveAuditResult(
 
   const followingBatch = classifyAccountBatch(followingInputs);
   const followersBatch = classifyAccountBatch(followersInputs.length > 0 ? followersInputs : followingInputs);
+
+  // DolphinRadar Forensic Event Logger: record detected diff events
+  const newActivityEvents: RadarActivityEvent[] = [];
+  const nowIso = new Date().toISOString();
+  const timeFormatted = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
+  followingBatch.accounts.forEach((acc) => {
+    if (acc.isNewFollow) {
+      newActivityEvents.push({
+        id: `ev_nf_${Date.now()}_${acc.username}`,
+        targetUsername: cleanUsername,
+        eventType: "NEW_FOLLOW",
+        subjectUsername: acc.username,
+        subjectName: acc.name,
+        subjectAvatar: acc.avatar,
+        subjectGender: acc.gender,
+        isBrand: Boolean(acc.isBrand),
+        isVerified: Boolean(acc.isVerified),
+        detectedAt: nowIso,
+        timeWindowFormatted: `Detected today at ${timeFormatted}`,
+      });
+    }
+  });
+
+  if (followingDiff && followingDiff.unfollowed && followingDiff.unfollowed.length > 0) {
+    followingDiff.unfollowed.forEach((uname) => {
+      newActivityEvents.push({
+        id: `ev_uf_${Date.now()}_${uname}`,
+        targetUsername: cleanUsername,
+        eventType: "UNFOLLOW",
+        subjectUsername: uname,
+        subjectName: uname,
+        subjectAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(uname)}&background=0284c7&color=fff`,
+        subjectGender: "other",
+        isBrand: false,
+        isVerified: false,
+        detectedAt: nowIso,
+        timeWindowFormatted: `Detected today at ${timeFormatted}`,
+      });
+    });
+  }
+
+  if (newActivityEvents.length > 0) {
+    recordActivityEvents(cleanUsername, newActivityEvents);
+  }
+
 
   const realFollowersCount = profileData?.followersCount || (followersInputs.length > 0 ? followersInputs.length : 2376);
   const realFollowingCount = profileData?.followingCount || (followingInputs.length > 0 ? followingInputs.length : 2780);

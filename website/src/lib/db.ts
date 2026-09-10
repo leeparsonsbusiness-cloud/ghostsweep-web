@@ -8,9 +8,11 @@ export {
   isVipEmail, 
   isBlockedEmail, 
   type UserPlan, 
-  type AuditHistoryEntry 
+  type AuditHistoryEntry,
+  type TrackedTarget,
+  type RadarActivityEvent
 } from "./types";
-import { isVipEmail, isBlockedEmail, UserPlan, AuditHistoryEntry } from "./types";
+import { isVipEmail, isBlockedEmail, UserPlan, AuditHistoryEntry, TrackedTarget, RadarActivityEvent } from "./types";
 
 export interface DbUser {
   id: string;
@@ -61,6 +63,8 @@ export interface VaultState {
   auditHistory: Record<string, AuditHistoryEntry[]>; // email -> list of history items
   followsSnapshots: Record<string, FollowsSnapshot[]>; // `target:type` -> list of snapshots
   magicTokens: Record<string, DbMagicToken>;
+  trackedTargets: Record<string, TrackedTarget>; // targetKey: `${userEmail}:${targetUsername}`
+  activityEvents: Record<string, RadarActivityEvent[]>; // targetUsername -> list of events
 }
 
 // In-Memory Storage Layer (Serverless & Container Safe)
@@ -72,6 +76,8 @@ let memoryVault: VaultState = {
   auditHistory: {},
   followsSnapshots: {},
   magicTokens: {},
+  trackedTargets: {},
+  activityEvents: {},
 };
 
 let isInitialized = false;
@@ -101,6 +107,8 @@ function loadVault(): VaultState {
           auditHistory: parsed.auditHistory || {},
           followsSnapshots: parsed.followsSnapshots || {},
           magicTokens: parsed.magicTokens || {},
+          trackedTargets: parsed.trackedTargets || {},
+          activityEvents: parsed.activityEvents || {},
         };
       }
     }
@@ -538,6 +546,11 @@ export function isAuditUnlocked(
     return true; // VIP access unlocked for all profiles
   }
 
+  const user = memoryVault.users[email];
+  if (user && user.plan === "unlimited") {
+    return true; // Unlimited plan users have access to all profiles
+  }
+
   const userAudits = memoryVault.unlockedAudits[email];
   return Boolean(userAudits && userAudits[cleanTarget]);
 }
@@ -813,3 +826,217 @@ export function verifyMagicToken(token: string): { valid: boolean; email?: strin
 
   return { valid: true, email: record.email };
 }
+
+/**
+ * Add an Instagram account to active radar tracking
+ */
+export function addTrackedTarget(
+  emailOrUserId: string,
+  targetUsername: string,
+  frequencyHours: number = 12,
+  targetType: "following" | "followers" | "both" = "following",
+  meta?: { avatarUrl?: string; fullName?: string; followersCount?: number; followingCount?: number }
+): { success: boolean; target?: TrackedTarget; error?: string } {
+  loadVault();
+  const cleanTarget = normalizeTargetUsername(targetUsername);
+  if (!cleanTarget) {
+    return { success: false, error: "Invalid target username." };
+  }
+
+  let email = emailOrUserId.trim().toLowerCase();
+  if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
+    email = memoryVault.usersById[emailOrUserId];
+  }
+
+  if (!email) {
+    return { success: false, error: "User authentication required." };
+  }
+
+  const user = getOrCreateUser(email);
+  const isVip = isVipEmail(email);
+  const plan = isVip ? "unlimited" : user.plan || "free";
+  const targetLimit = plan === "unlimited" ? 999999 : plan === "standard" ? 3 : 1;
+
+  if (!memoryVault.trackedTargets) {
+    memoryVault.trackedTargets = {};
+  }
+
+  const key = `${email}:${cleanTarget}`;
+  const existing = memoryVault.trackedTargets[key];
+  if (existing) {
+    existing.status = "active";
+    if (meta?.avatarUrl) existing.avatarUrl = meta.avatarUrl;
+    if (meta?.fullName) existing.fullName = meta.fullName;
+    if (meta?.followersCount !== undefined) existing.lastKnownFollowerCount = meta.followersCount;
+    if (meta?.followingCount !== undefined) existing.lastKnownFollowingCount = meta.followingCount;
+    persistVault();
+    return { success: true, target: existing };
+  }
+
+  // Count active targets for this user
+  const userTargets = Object.values(memoryVault.trackedTargets).filter(
+    (t) => t.userEmail === email && t.status === "active"
+  );
+
+  if (userTargets.length >= targetLimit) {
+    return {
+      success: false,
+      error: `You have reached your tracking limit (${targetLimit} account${targetLimit > 1 ? "s" : ""}) on the ${plan.toUpperCase()} plan. Upgrade to unlock more monitored targets.`,
+    };
+  }
+
+  const now = new Date();
+  const nextScan = new Date(now.getTime() + frequencyHours * 60 * 60 * 1000).toISOString();
+
+  const newTarget: TrackedTarget = {
+    id: `tgt_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    userEmail: email,
+    targetUsername: cleanTarget,
+    targetType,
+    status: "active",
+    frequencyHours,
+    lastScannedAt: now.toISOString(),
+    nextScanAt: nextScan,
+    totalNewFollowsDetected: 0,
+    totalUnfollowsDetected: 0,
+    lastKnownFollowerCount: meta?.followersCount,
+    lastKnownFollowingCount: meta?.followingCount,
+    avatarUrl: meta?.avatarUrl,
+    fullName: meta?.fullName,
+    createdAt: now.toISOString(),
+  };
+
+  memoryVault.trackedTargets[key] = newTarget;
+  persistVault();
+
+  return { success: true, target: newTarget };
+}
+
+/**
+ * Get all tracked targets for a user
+ */
+export function getTrackedTargets(emailOrUserId: string): TrackedTarget[] {
+  if (!emailOrUserId) return [];
+  loadVault();
+
+  let email = emailOrUserId.trim().toLowerCase();
+  if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
+    email = memoryVault.usersById[emailOrUserId];
+  }
+
+  if (!memoryVault.trackedTargets) return [];
+
+  return Object.values(memoryVault.trackedTargets).filter(
+    (t) => t.userEmail === email
+  );
+}
+
+/**
+ * Remove a tracked target
+ */
+export function removeTrackedTarget(emailOrUserId: string, targetUsername: string): boolean {
+  loadVault();
+  const cleanTarget = normalizeTargetUsername(targetUsername);
+  let email = emailOrUserId.trim().toLowerCase();
+  if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
+    email = memoryVault.usersById[emailOrUserId];
+  }
+
+  const key = `${email}:${cleanTarget}`;
+  if (memoryVault.trackedTargets && memoryVault.trackedTargets[key]) {
+    delete memoryVault.trackedTargets[key];
+    persistVault();
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Get all active targets across all users due for automated scan
+ */
+export function getAllActiveTargetsDueForScan(): TrackedTarget[] {
+  loadVault();
+  if (!memoryVault.trackedTargets) return [];
+
+  const now = Date.now();
+  const targets = Object.values(memoryVault.trackedTargets).filter((t) => {
+    if (t.status !== "active") return false;
+    const nextScanTime = new Date(t.nextScanAt).getTime();
+    return !t.nextScanAt || nextScanTime <= now;
+  });
+
+  return targets;
+}
+
+/**
+ * Update target scan state
+ */
+export function updateTrackedTarget(
+  userEmail: string,
+  targetUsername: string,
+  updates: Partial<TrackedTarget>
+): void {
+  loadVault();
+  const cleanTarget = normalizeTargetUsername(targetUsername);
+  const cleanEmail = userEmail.trim().toLowerCase();
+  const key = `${cleanEmail}:${cleanTarget}`;
+
+  if (memoryVault.trackedTargets && memoryVault.trackedTargets[key]) {
+    memoryVault.trackedTargets[key] = {
+      ...memoryVault.trackedTargets[key],
+      ...updates,
+    };
+    persistVault();
+  }
+}
+
+/**
+ * Record Radar Activity Events (New follows, unfollows)
+ */
+export function recordActivityEvents(
+  targetUsername: string,
+  events: RadarActivityEvent[]
+): void {
+  if (!events || events.length === 0) return;
+  loadVault();
+  const cleanTarget = normalizeTargetUsername(targetUsername);
+
+  if (!memoryVault.activityEvents) {
+    memoryVault.activityEvents = {};
+  }
+
+  const existing = memoryVault.activityEvents[cleanTarget] || [];
+  const combined = [...events, ...existing];
+
+  // De-duplicate by id or (subjectUsername + eventType + detectedAt)
+  const seen = new Set<string>();
+  const deduped: RadarActivityEvent[] = [];
+
+  for (const ev of combined) {
+    const key = `${ev.eventType}:${ev.subjectUsername}:${ev.detectedAt.substring(0, 13)}`; // 1-hour window dedup
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(ev);
+    }
+  }
+
+  // Keep last 200 activity events
+  memoryVault.activityEvents[cleanTarget] = deduped.slice(0, 200);
+  persistVault();
+}
+
+/**
+ * Get Activity Timeline Events for a Target
+ */
+export function getTargetActivityEvents(
+  targetUsername: string,
+  limit: number = 50
+): RadarActivityEvent[] {
+  loadVault();
+  const cleanTarget = normalizeTargetUsername(targetUsername);
+  if (!memoryVault.activityEvents || !memoryVault.activityEvents[cleanTarget]) {
+    return [];
+  }
+  return memoryVault.activityEvents[cleanTarget].slice(0, limit);
+}
+

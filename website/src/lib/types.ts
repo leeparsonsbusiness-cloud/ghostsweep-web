@@ -31,3 +31,36 @@ export interface AuditHistoryEntry {
   timestamp: string;
   targetType: "following" | "followers";
 }
+
+export interface TrackedTarget {
+  id: string;
+  userEmail: string;
+  targetUsername: string;
+  targetType: "following" | "followers" | "both";
+  status: "active" | "paused";
+  frequencyHours: number;
+  lastScannedAt: string | null;
+  nextScanAt: string;
+  totalNewFollowsDetected: number;
+  totalUnfollowsDetected: number;
+  lastKnownFollowerCount?: number;
+  lastKnownFollowingCount?: number;
+  avatarUrl?: string;
+  fullName?: string;
+  createdAt: string;
+}
+
+export interface RadarActivityEvent {
+  id: string;
+  targetUsername: string;
+  eventType: "NEW_FOLLOW" | "UNFOLLOW" | "MUTUAL_CHANGE";
+  subjectUsername: string;
+  subjectName: string;
+  subjectAvatar: string;
+  subjectGender: "female" | "male" | "brand" | "bot" | "other";
+  isBrand: boolean;
+  isVerified: boolean;
+  detectedAt: string;
+  timeWindowFormatted: string;
+}
+

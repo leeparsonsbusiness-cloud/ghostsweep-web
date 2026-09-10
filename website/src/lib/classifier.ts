@@ -485,6 +485,13 @@ export function classifyAccountBatch(accounts: AccountForensicInput[]) {
   const brandPct = Math.round((brandCount / total) * 100);
   const inactivePct = Math.max(0, 100 - malePct - femalePct - brandPct);
 
+  // Prioritize newly detected follows at the top of the forensic list
+  classified.sort((a, b) => {
+    if (a.isNewFollow && !b.isNewFollow) return -1;
+    if (!a.isNewFollow && b.isNewFollow) return 1;
+    return a.chronologicalRank - b.chronologicalRank;
+  });
+
   return {
     accounts: classified,
     summary: {
@@ -503,4 +510,5 @@ export function classifyAccountBatch(accounts: AccountForensicInput[]) {
     },
   };
 }
+
 
