@@ -4,12 +4,17 @@
 
 export type UserPlan = "free" | "standard" | "unlimited";
 
-export const VIP_ADMIN_EMAILS = ["leeparsonsbusiness@gmail.com"];
+export const VIP_ADMIN_EMAILS = [
+  "leeparsonsbusiness@gmail.com",
+  "dev",
+  "dev@ghostsweep.info"
+];
 export const BLOCKED_EMAILS = ["jyacinda@gmail.com"];
 
 export function isVipEmail(email?: string | null): boolean {
   if (!email) return false;
-  return VIP_ADMIN_EMAILS.includes(email.trim().toLowerCase());
+  const clean = email.trim().toLowerCase();
+  return VIP_ADMIN_EMAILS.includes(clean) || clean === "dev";
 }
 
 export function isBlockedEmail(email?: string | null): boolean {

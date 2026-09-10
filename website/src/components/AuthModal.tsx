@@ -111,8 +111,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    if (!cleanEmail || !cleanEmail.includes("@")) {
-      setErrorMessage("Please enter a valid email address.");
+    if (!cleanEmail || (!cleanEmail.includes("@") && cleanEmail !== "dev")) {
+      setErrorMessage("Please enter a valid email address or username.");
       return;
     }
 
@@ -423,16 +423,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <form onSubmit={handleSubmit} className="space-y-3.5">
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5">
-                  Account Email
+                  Account Email or Username
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3.5 top-3 w-4 h-4 text-zinc-400" />
                   <input
                     id="auth-email-input"
                     name="email"
-                    type="email"
+                    type="text"
                     required
-                    placeholder="alex@example.com"
+                    placeholder="dev or alex@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:border-sky-500 dark:focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-colors placeholder:text-zinc-400"

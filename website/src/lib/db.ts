@@ -90,6 +90,23 @@ function loadVault(): VaultState {
     console.warn("[Vault] Could not read vault file, using in-memory store:", err.message);
   }
 
+  // Ensure Dev VIP Account exists with full access
+  const devHash = hashPassword("dev");
+  if (!memoryVault.users["dev"] || memoryVault.users["dev"].password_hash !== devHash || memoryVault.users["dev"].plan !== "unlimited") {
+    memoryVault.users["dev"] = {
+      id: "usr_dev_master",
+      email: "dev",
+      password_hash: devHash,
+      stripe_customer_id: null,
+      plan: "unlimited",
+      searches_this_month: 0,
+      searched_accounts: [],
+      search_month_reset: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      created_at: new Date().toISOString(),
+    };
+    memoryVault.usersById["usr_dev_master"] = "dev";
+  }
+
   isInitialized = true;
   return memoryVault;
 }
@@ -137,8 +154,8 @@ export function registerUser(
 ): { success: boolean; user?: DbUser; error?: string } {
   loadVault();
   const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail || !cleanEmail.includes("@")) {
-    return { success: false, error: "Please enter a valid email address." };
+  if (!cleanEmail || (!cleanEmail.includes("@") && cleanEmail !== "dev")) {
+    return { success: false, error: "Please enter a valid email address or username." };
   }
 
   if (isBlockedEmail(cleanEmail)) {
@@ -190,8 +207,8 @@ export function authenticateUser(
 ): { success: boolean; user?: DbUser; error?: string } {
   loadVault();
   const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail || !cleanEmail.includes("@")) {
-    return { success: false, error: "Please enter a valid email address." };
+  if (!cleanEmail || (!cleanEmail.includes("@") && cleanEmail !== "dev")) {
+    return { success: false, error: "Please enter a valid email address or username." };
   }
 
   if (isBlockedEmail(cleanEmail)) {

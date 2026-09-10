@@ -10,9 +10,9 @@ export async function POST(req: NextRequest) {
     const email = body.email ? body.email.trim().toLowerCase() : "";
     const password = body.password ? body.password.trim() : "";
 
-    if (!email || !email.includes("@")) {
+    if (!email || (!email.includes("@") && email !== "dev")) {
       return NextResponse.json(
-        { success: false, error: "A valid email address is required." },
+        { success: false, error: "A valid email address or username is required." },
         { status: 400 }
       );
     }
