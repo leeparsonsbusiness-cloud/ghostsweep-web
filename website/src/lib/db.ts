@@ -38,12 +38,28 @@ export interface DbMagicToken {
   created_at: string;
 }
 
+export interface FollowsSnapshot {
+  targetUsername: string;
+  targetType: string;
+  usernames: string[];
+  timestamp: string;
+}
+
+export interface DiffResult {
+  newFollows: string[];
+  unfollowed: string[];
+  isBaseline: boolean;
+  baselineTimestamp?: string;
+  baselineCount: number;
+}
+
 export interface VaultState {
   users: Record<string, DbUser>; // keyed by email
   usersById: Record<string, string>; // userId -> email
   unlockedAudits: Record<string, Record<string, string>>; // email -> { targetUsername: unlockedAt }
   auditCache: Record<string, { data_json: string; created_at: string }>; // `target_username:audit_type` -> data
   auditHistory: Record<string, AuditHistoryEntry[]>; // email -> list of history items
+  followsSnapshots: Record<string, FollowsSnapshot[]>; // `target:type` -> list of snapshots
   magicTokens: Record<string, DbMagicToken>;
 }
 
@@ -54,6 +70,7 @@ let memoryVault: VaultState = {
   unlockedAudits: {},
   auditCache: {},
   auditHistory: {},
+  followsSnapshots: {},
   magicTokens: {},
 };
 
@@ -82,6 +99,7 @@ function loadVault(): VaultState {
           unlockedAudits: parsed.unlockedAudits || {},
           auditCache: parsed.auditCache || {},
           auditHistory: parsed.auditHistory || {},
+          followsSnapshots: parsed.followsSnapshots || {},
           magicTokens: parsed.magicTokens || {},
         };
       }
@@ -610,6 +628,106 @@ export function getUserAuditHistory(emailOrUserId: string): AuditHistoryEntry[] 
 }
 
 /**
+ * Record a Follows Snapshot and calculate diff against previous snapshot
+ */
+export function recordFollowsSnapshot(
+  targetUsername: string,
+  targetType: string,
+  currentList: string[]
+): DiffResult {
+  loadVault();
+  const cleanTarget = normalizeTargetUsername(targetUsername);
+  const key = `${cleanTarget}:${targetType}`;
+  const now = new Date().toISOString();
+
+  if (!memoryVault.followsSnapshots) {
+    memoryVault.followsSnapshots = {};
+  }
+
+  const history = memoryVault.followsSnapshots[key] || [];
+  const previousSnapshot = history.length > 0 ? history[history.length - 1] : null;
+
+  const currentSet = new Set(currentList.map((u) => u.toLowerCase().replace(/^@/, "")));
+
+  let newFollows: string[] = [];
+  let unfollowed: string[] = [];
+  let isBaseline = false;
+  let baselineTimestamp = previousSnapshot?.timestamp;
+
+  if (!previousSnapshot) {
+    // First time this account is audited -> Create baseline
+    isBaseline = true;
+    newFollows = [];
+    unfollowed = [];
+  } else {
+    const prevSet = new Set(previousSnapshot.usernames.map((u) => u.toLowerCase().replace(/^@/, "")));
+
+    // Accounts in current scrape that were not in previous snapshot
+    newFollows = currentList.filter((u) => !prevSet.has(u.toLowerCase().replace(/^@/, "")));
+
+    // Accounts in previous snapshot that are no longer in current scrape
+    unfollowed = previousSnapshot.usernames.filter((u) => !currentSet.has(u.toLowerCase().replace(/^@/, "")));
+  }
+
+  // Push new snapshot to history (keep last 20 snapshots)
+  history.push({
+    targetUsername: cleanTarget,
+    targetType,
+    usernames: currentList,
+    timestamp: now,
+  });
+
+  memoryVault.followsSnapshots[key] = history.slice(-20);
+  persistVault();
+
+  return {
+    newFollows,
+    unfollowed,
+    isBaseline,
+    baselineTimestamp,
+    baselineCount: previousSnapshot ? previousSnapshot.usernames.length : currentList.length,
+  };
+}
+
+/**
+ * Get the latest Snapshot Diff for an account without writing a new snapshot
+ */
+export function getFollowsDiff(
+  targetUsername: string,
+  targetType: string,
+  currentList: string[]
+): DiffResult {
+  loadVault();
+  const cleanTarget = normalizeTargetUsername(targetUsername);
+  const key = `${cleanTarget}:${targetType}`;
+
+  if (!memoryVault.followsSnapshots || !memoryVault.followsSnapshots[key] || memoryVault.followsSnapshots[key].length === 0) {
+    return {
+      newFollows: [],
+      unfollowed: [],
+      isBaseline: true,
+      baselineCount: currentList.length,
+    };
+  }
+
+  const history = memoryVault.followsSnapshots[key];
+  const previousSnapshot = history[history.length - 1];
+  const prevSet = new Set(previousSnapshot.usernames.map((u) => u.toLowerCase().replace(/^@/, "")));
+  const currentSet = new Set(currentList.map((u) => u.toLowerCase().replace(/^@/, "")));
+
+  const newFollows = currentList.filter((u) => !prevSet.has(u.toLowerCase().replace(/^@/, "")));
+  const unfollowed = previousSnapshot.usernames.filter((u) => !currentSet.has(u.toLowerCase().replace(/^@/, "")));
+
+  return {
+    newFollows,
+    unfollowed,
+    isBaseline: false,
+    baselineTimestamp: previousSnapshot.timestamp,
+    baselineCount: previousSnapshot.usernames.length,
+  };
+}
+
+/**
  * Save audit cache payload
  */
 export function saveAuditCache(targetUsername: string, auditType: string, data: any): void {
@@ -626,9 +744,13 @@ export function saveAuditCache(targetUsername: string, auditType: string, data: 
 }
 
 /**
- * Get cached audit data
+ * Get cached audit data with expiration check
  */
-export function getAuditCache(targetUsername: string, auditType: string): any | null {
+export function getAuditCache(
+  targetUsername: string,
+  auditType: string,
+  maxAgeHours: number = 12
+): any | null {
   loadVault();
   const cleanTarget = normalizeTargetUsername(targetUsername);
   const key = `${cleanTarget}:${auditType}`;
@@ -636,6 +758,14 @@ export function getAuditCache(targetUsername: string, auditType: string): any | 
   const entry = memoryVault.auditCache[key];
   if (entry && entry.data_json) {
     try {
+      const createdAt = new Date(entry.created_at).getTime();
+      const ageMs = Date.now() - createdAt;
+      const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
+
+      if (ageMs > maxAgeMs) {
+        return null; // Expired cache -> trigger fresh scan
+      }
+
       return JSON.parse(entry.data_json);
     } catch {
       return null;

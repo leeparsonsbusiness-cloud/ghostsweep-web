@@ -512,6 +512,24 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
             ) : (
               /* PAID UNLOCKED STATE: Full Searchable & Filterable Table (500 Accounts) */
               <div className="space-y-3">
+                {/* Diff Radar Snapshot Alert */}
+                {auditData.diffSummary && auditData.diffSummary.newFollowsCount > 0 ? (
+                  <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300 flex items-center justify-between animate-in fade-in">
+                    <span className="font-bold flex items-center gap-1.5">
+                      <Zap className="w-4 h-4 text-emerald-500 fill-emerald-500" />
+                      <span>{auditData.diffSummary.newFollowsCount} New Follow(s) Detected Since Last Scan!</span>
+                    </span>
+                    <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded font-mono font-bold">
+                      Diff Radar Active
+                    </span>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-700/60 text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center justify-between">
+                    <span>🛡️ <strong>Baseline Snapshot Active:</strong> {allAccounts.length} follows indexed</span>
+                    <span className="text-[10px] text-zinc-400">Re-scans will automatically diff &amp; flag new follows</span>
+                  </div>
+                )}
+
                 {/* Search Bar & Export Controls */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
                   <div className="relative flex-1">
@@ -568,6 +586,11 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                                   ✓
                                 </span>
                               )}
+                              {acc.isNewFollow && (
+                                <span className="text-[10px] px-1.5 py-0.2 rounded font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-mono">
+                                  NEW
+                                </span>
+                              )}
                             </div>
                             <span className="text-[10px] text-zinc-400 truncate block">
                               {acc.name}
@@ -588,8 +611,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                             {acc.genderLabel || (acc.gender === "female" ? "👩 Girl" : acc.gender === "male" ? "👨 Guy" : acc.gender === "brand" ? "🏢 Brand" : "🤖 Bot")}
                           </span>
 
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
-                            <Clock className="w-2.5 h-2.5 text-sky-400" />
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 flex items-center gap-1">
                             <span>{acc.timestampLabel}</span>
                           </span>
 

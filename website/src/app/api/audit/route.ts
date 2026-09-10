@@ -13,13 +13,24 @@ import {
   isAuditUnlocked, 
   normalizeTargetUsername,
   getUserPlanAndUsage,
-  recordUserSearch
+  recordUserSearch,
+  recordFollowsSnapshot,
+  getFollowsDiff,
+  DiffResult
 } from "@/lib/db";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 export type AuditAccountItem = ClassifiedAccount;
+
+export interface DiffSummary {
+  newFollowsCount: number;
+  unfollowedCount: number;
+  isBaseline: boolean;
+  baselineTimestamp?: string;
+  baselineCount: number;
+}
 
 export interface ActivitySummary {
   girlsCount: number;
@@ -102,6 +113,7 @@ export interface AuditResult {
   allAccounts?: ClassifiedAccount[];
   followingMetrics: TargetTypeMetrics;
   followersMetrics: TargetTypeMetrics;
+  diffSummary?: DiffSummary;
   recommendations: string[];
 }
 
@@ -229,7 +241,7 @@ async function scrapeInstagramWithApify(
 }
 
 /**
- * Build structured AuditResult directly from live Apify items with NO mock data fallback
+ * Build structured AuditResult directly from live Apify items with Snapshot Diff Engine
  */
 function buildLiveAuditResult(
   cleanUsername: string,
@@ -245,6 +257,19 @@ function buildLiveAuditResult(
     )
   );
 
+  // Snapshot Diff Calculation
+  const followingUsernames = followingRaw.map((item: any) =>
+    (item.username || item.handle || "").toLowerCase().replace(/^@/, "").trim()
+  ).filter(Boolean);
+  const followingDiff = recordFollowsSnapshot(cleanUsername, "following", followingUsernames);
+  const newFollowingSet = new Set(followingDiff.newFollows.map((u) => u.toLowerCase()));
+
+  const followersUsernames = followersRaw.map((item: any) =>
+    (item.username || item.handle || "").toLowerCase().replace(/^@/, "").trim()
+  ).filter(Boolean);
+  const followersDiff = recordFollowsSnapshot(cleanUsername, "followers", followersUsernames);
+  const newFollowersSet = new Set(followersDiff.newFollows.map((u) => u.toLowerCase()));
+
   // Map raw Following items into AccountForensicInput array
   const followingInputs: AccountForensicInput[] = followingRaw.map((item: any, idx: number) => {
     const rawPic = item.profilePicUrl || item.profile_pic_url || item.profilePicUrlHD || item.avatar || "";
@@ -252,6 +277,7 @@ function buildLiveAuditResult(
     const uname = (item.username || item.handle || `user_${idx + 1}`).replace(/^@/, "").trim();
     const fullName = item.fullName || item.full_name || item.name || uname;
     const followsYou = followersSet.has(uname.toLowerCase());
+    const isNewFollow = newFollowingSet.has(uname.toLowerCase());
 
     return {
       username: uname,
@@ -265,6 +291,8 @@ function buildLiveAuditResult(
       followingCount: item.followingCount ?? item.following_count ?? 0,
       followsYou,
       chronologicalRank: idx,
+      isNewFollow,
+      detectedAt: isNewFollow ? "Today" : undefined,
     };
   });
 
@@ -274,6 +302,7 @@ function buildLiveAuditResult(
     const proxiedAvatar = rawPic ? `/api/proxy-image?url=${encodeURIComponent(rawPic)}` : "";
     const uname = (item.username || item.handle || `user_${idx + 1}`).replace(/^@/, "").trim();
     const fullName = item.fullName || item.full_name || item.name || uname;
+    const isNewFollow = newFollowersSet.has(uname.toLowerCase());
 
     return {
       username: uname,
@@ -287,6 +316,8 @@ function buildLiveAuditResult(
       followingCount: item.followingCount ?? item.following_count ?? 0,
       followsYou: true,
       chronologicalRank: idx,
+      isNewFollow,
+      detectedAt: isNewFollow ? "Today" : undefined,
     };
   });
 
@@ -376,6 +407,7 @@ function buildLiveAuditResult(
   };
 
   const activeMetrics = targetType === "followers" ? followersMetrics : followingMetrics;
+  const activeDiff = targetType === "followers" ? followersDiff : followingDiff;
   const fallbackAvatar = `/api/proxy-image?url=https%3A%2F%2Fui-avatars.com%2Fapi%2F%3Fname%3D${encodeURIComponent(cleanUsername)}%26background%3D0284c7%26color%3Dfff%26size%3D256`;
   const primaryAvatar = profileData?.avatar || fallbackAvatar;
 
@@ -424,10 +456,17 @@ function buildLiveAuditResult(
     allAccounts: activeMetrics.allAccounts,
     followingMetrics,
     followersMetrics,
+    diffSummary: {
+      newFollowsCount: activeDiff.newFollows.length,
+      unfollowedCount: activeDiff.unfollowed.length,
+      isBaseline: activeDiff.isBaseline,
+      baselineTimestamp: activeDiff.baselineTimestamp,
+      baselineCount: activeDiff.baselineCount,
+    },
     recommendations: [
-      "View live chronological follow activity",
-      "Filter by Female and Male accounts",
-      "Inspect mutual vs non-reciprocal connections",
+      "View live follow activity & mutual reciprocity",
+      "Filter by Girls, Guys, and Brands & Studios",
+      "Monitor profile with automated Follow Radar",
     ],
   };
 }
@@ -450,6 +489,7 @@ export async function POST(req: NextRequest) {
     const cleanUsername = cleanHandle(rawUsername);
     const targetType: TargetType = body.targetType === "followers" || body.type === "followers" ? "followers" : "following";
     const userEmail = body.email || req.cookies.get("gs_session")?.value;
+    const forceRefresh = Boolean(body.forceRefresh || body.refresh);
 
     if (!cleanUsername) {
       return NextResponse.json(
@@ -460,11 +500,13 @@ export async function POST(req: NextRequest) {
 
     const unlocked = isAuditUnlocked(userEmail, cleanUsername);
 
-    // Check cache first
-    const cached = getAuditCache(cleanUsername, targetType);
-    if (cached) {
-      cached.isUnlocked = unlocked;
-      return NextResponse.json({ success: true, data: cached });
+    // Check cache first (12h expiration unless forceRefresh is true)
+    if (!forceRefresh) {
+      const cached = getAuditCache(cleanUsername, targetType, 12);
+      if (cached) {
+        cached.isUnlocked = unlocked;
+        return NextResponse.json({ success: true, data: cached });
+      }
     }
 
     // Enforce Plan & Search Limits
@@ -556,6 +598,7 @@ export async function GET(req: NextRequest) {
     const cleanUsername = cleanHandle(rawUsername);
     const targetType: TargetType = searchParams.get("targetType") === "followers" || searchParams.get("type") === "followers" ? "followers" : "following";
     const userEmail = searchParams.get("email") || req.cookies.get("gs_session")?.value;
+    const forceRefresh = searchParams.get("forceRefresh") === "true" || searchParams.get("refresh") === "true";
 
     if (!cleanUsername) {
       return NextResponse.json(
@@ -566,11 +609,13 @@ export async function GET(req: NextRequest) {
 
     const unlocked = isAuditUnlocked(userEmail, cleanUsername);
 
-    // Check cache first
-    const cached = getAuditCache(cleanUsername, targetType);
-    if (cached) {
-      cached.isUnlocked = unlocked;
-      return NextResponse.json({ success: true, data: cached });
+    // Check cache first (12h expiration unless forceRefresh is true)
+    if (!forceRefresh) {
+      const cached = getAuditCache(cleanUsername, targetType, 12);
+      if (cached) {
+        cached.isUnlocked = unlocked;
+        return NextResponse.json({ success: true, data: cached });
+      }
     }
 
     // Enforce Plan & Search Limits

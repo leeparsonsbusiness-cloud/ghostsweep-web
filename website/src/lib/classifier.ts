@@ -131,6 +131,8 @@ export interface AccountForensicInput {
   followsYou?: boolean;
   recentActivityDays?: number;
   chronologicalRank?: number;
+  isNewFollow?: boolean;
+  detectedAt?: string;
 }
 
 export interface ClassifiedAccount {
@@ -155,6 +157,7 @@ export interface ClassifiedAccount {
   isBot: boolean;
   isGhost: boolean;
   isBrand: boolean;
+  isNewFollow: boolean;
   isNonReciprocal: boolean;
   chronologicalRank: number;
   confidenceScore: number;
@@ -362,19 +365,23 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
   const isNonReciprocal = !followsYou;
   const isGhost = botCheck.isGhost || inactiveDays > 120;
   const isVerified = Boolean(input.isVerified);
+  const rank = input.chronologicalRank ?? index;
   const isBrand = gender === "brand";
 
-  // Relative timestamp label
-  const rank = input.chronologicalRank ?? index;
+  // Forensic activity and status labels
+  const isNewFollow = Boolean(input.isNewFollow);
   let timestampLabel = "";
-  if (rank === 0) timestampLabel = "🕒 ~2h ago";
-  else if (rank === 1) timestampLabel = "🕒 ~4h ago - Last Night";
-  else if (rank === 2) timestampLabel = "🕒 ~8h ago - Last Night";
-  else if (rank === 3) timestampLabel = "🕒 ~12h ago - Last Night";
-  else if (rank === 4) timestampLabel = "🕒 ~1d ago";
-  else if (rank === 5) timestampLabel = "🕒 ~2d ago";
-  else if (rank === 6) timestampLabel = "🕒 ~3d ago";
-  else timestampLabel = `🕒 ~${Math.min(30, Math.floor(4 + (rank - 6) * 1.5))}d ago`;
+  if (isNewFollow) {
+    timestampLabel = input.detectedAt ? `🆕 Detected ${input.detectedAt}` : "🆕 New Follow Detected";
+  } else if (isVerified) {
+    timestampLabel = "⭐ Verified Account";
+  } else if (input.isPrivate) {
+    timestampLabel = "🔒 Private Profile";
+  } else if (isGhost) {
+    timestampLabel = `🚫 Inactive >${inactiveDays}d`;
+  } else {
+    timestampLabel = "Audited Follow";
+  }
 
   const genderLabel = 
     gender === "female" ? "👩 Girl" : 
@@ -385,12 +392,12 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
   const reciprocityLabel = followsYou ? "🔄 Mutual" : "🚫 Doesn't Follow Back";
 
   let tag = "";
-  if (gender === "bot") {
+  if (isNewFollow) {
+    tag = `🆕 New Follow • ${genderLabel} • ${reciprocityLabel}`;
+  } else if (gender === "bot") {
     tag = "🤖 Ghost • Follower Farm";
   } else if (gender === "brand") {
     tag = `🏢 Brand / Studio • ${reciprocityLabel}`;
-  } else if (index === 0 && isNonReciprocal) {
-    tag = `${genderLabel} • ${timestampLabel}`;
   } else if (isNonReciprocal && isGhost) {
     tag = `${genderLabel} • 🚫 Inactive >${inactiveDays}d`;
   } else if (isNonReciprocal) {
@@ -423,6 +430,7 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
     isBot: gender === "bot",
     isGhost,
     isBrand,
+    isNewFollow,
     isNonReciprocal,
     chronologicalRank: rank,
     confidenceScore: confidence,
