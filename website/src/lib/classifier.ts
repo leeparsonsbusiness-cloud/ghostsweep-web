@@ -296,14 +296,30 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
     if (MALE_NAMES.has(token)) maleScore += 60;
   }
 
-  // Layer 2: Substring Name Match in Username (e.g. "dtamersam" -> "sam", "shubbb_01" -> "shub")
+  // Layer 2: Substring Name Match in Username (e.g. "dtamersam" -> "sam", "shubbb_01" -> "shub", "fatherk1ng" -> "father/king")
   for (const token of nameTokens) {
     if (token.length >= 3) {
-      if (token.includes("sam") || token.includes("mike") || token.includes("jake") || token.includes("brody") || token.includes("dre") || token.includes("eli") || token.includes("jonas") || token.includes("david") || token.includes("bryan") || token.includes("rob") || token.includes("boy") || token.includes("boii") || token.includes("man") || token.includes("guy")) {
-        maleScore += 45;
+      if (
+        token.includes("sam") || token.includes("mike") || token.includes("jake") || 
+        token.includes("brody") || token.includes("dre") || token.includes("eli") || 
+        token.includes("jonas") || token.includes("david") || token.includes("bryan") || 
+        token.includes("rob") || token.includes("boy") || token.includes("boii") || 
+        token.includes("man") || token.includes("guy") || token.includes("king") || 
+        token.includes("father") || token.includes("dad") || token.includes("bro") || 
+        token.includes("dude") || token.includes("mr") || token.includes("lord") || 
+        token.includes("prince")
+      ) {
+        maleScore += 50;
       }
-      if (token.includes("girl") || token.includes("babe") || token.includes("queen") || token.includes("miss") || token.includes("chiara") || token.includes("anna") || token.includes("sara") || token.includes("emma") || token.includes("mia") || token.includes("ava") || token.includes("bella")) {
-        femaleScore += 45;
+      if (
+        token.includes("girl") || token.includes("babe") || token.includes("queen") || 
+        token.includes("miss") || token.includes("mrs") || token.includes("lady") || 
+        token.includes("mama") || token.includes("mom") || token.includes("sister") || 
+        token.includes("chiara") || token.includes("anna") || token.includes("sara") || 
+        token.includes("emma") || token.includes("mia") || token.includes("ava") || 
+        token.includes("bella") || token.includes("princess")
+      ) {
+        femaleScore += 50;
       }
     }
   }
