@@ -17,11 +17,12 @@ export async function POST(req: NextRequest) {
     const targetUsername = normalizeTargetUsername(rawTarget);
     const plan = body.plan === "unlimited" ? "unlimited" : "standard";
     const isUnlimited = plan === "unlimited";
-    const amount = isUnlimited ? 999 : 499; // $9.99 48h pass or $4.99 single unlock
-    const planName = isUnlimited ? "GhostSweep 48-Hour All-Access Pass" : "GhostSweep Single Audit Unlock";
+    const planName = isUnlimited 
+      ? "GhostSweep Pro — 30 Searches / Week" 
+      : "GhostSweep — Unlock the Truth";
     const planDesc = isUnlimited
-      ? "Unlimited 48-hour Instagram forensic account searches & deep intelligence reports. One-time payment."
-      : `Complete chronological follow forensics, late-night radar, and all timestamps for @${targetUsername}. One-time payment.`;
+      ? "30 deep Instagram profile searches per week + priority scraping engine. Recurring monthly subscription."
+      : `Instant full report unlock for @${targetUsername} + 10 profile searches per week. One-time fee.`;
 
     if (!email || !email.includes("@")) {
       return NextResponse.json(
@@ -40,9 +41,8 @@ export async function POST(req: NextRequest) {
         apiVersion: "2026-08-26.dahlia" as any,
       });
 
-      const session = await stripe.checkout.sessions.create({
-        line_items: [
-          {
+      const lineItem: any = isUnlimited
+        ? {
             price_data: {
               currency: "usd",
               product_data: {
@@ -50,12 +50,27 @@ export async function POST(req: NextRequest) {
                 description: planDesc,
                 images: ["https://ghostsweep.info/og-image.png"],
               },
-              unit_amount: amount,
+              unit_amount: 999,
+              recurring: { interval: "month" },
             },
             quantity: 1,
-          },
-        ],
-        mode: "payment",
+          }
+        : {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: planName,
+                description: planDesc,
+                images: ["https://ghostsweep.info/og-image.png"],
+              },
+              unit_amount: 399,
+            },
+            quantity: 1,
+          };
+
+      const session = await stripe.checkout.sessions.create({
+        line_items: [lineItem],
+        mode: isUnlimited ? "subscription" : "payment",
         customer_email: email,
         metadata: {
           user_id: user.id,

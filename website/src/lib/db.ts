@@ -20,8 +20,10 @@ export interface DbUser {
   password_hash?: string | null;
   stripe_customer_id?: string | null;
   plan: UserPlan;
+  searches_this_week?: number;
   searches_this_month: number;
   searched_accounts: string[];
+  search_week_reset?: string;
   search_month_reset: string;
   created_at: string;
 }
@@ -225,6 +227,7 @@ export function registerUser(
   const id = cleanEmail === "leeparsonsbusiness@gmail.com" ? "usr_lee_founder" : `usr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const now = new Date().toISOString();
   const resetDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const weekResetDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const newUser: DbUser = {
     id,
@@ -232,8 +235,10 @@ export function registerUser(
     password_hash: passwordHash,
     stripe_customer_id: null,
     plan: isVip ? "unlimited" : "free",
+    searches_this_week: 0,
     searches_this_month: 0,
     searched_accounts: [],
+    search_week_reset: weekResetDate,
     search_month_reset: resetDate,
     created_at: now,
   };
@@ -329,14 +334,17 @@ export function getOrCreateUser(email: string, stripeCustomerId?: string): DbUse
   const id = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const now = new Date().toISOString();
   const resetDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const weekResetDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const newUser: DbUser = {
     id,
     email: cleanEmail,
     stripe_customer_id: stripeCustomerId || null,
     plan: isVip ? "unlimited" : "free",
+    searches_this_week: 0,
     searches_this_month: 0,
     searched_accounts: [],
+    search_week_reset: weekResetDate,
     search_month_reset: resetDate,
     created_at: now,
   };
@@ -358,6 +366,9 @@ export function setUserPlan(email: string, plan: UserPlan): DbUser {
   } else {
     user.plan = plan;
   }
+  // Start fresh weekly period from purchase date
+  user.searches_this_week = 0;
+  user.search_week_reset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   persistVault();
   return user;
 }
@@ -369,14 +380,17 @@ export function getUserPlanAndUsage(emailOrUserId: string | null | undefined): {
   plan: UserPlan;
   searchesUsed: number;
   searchLimit: number;
+  resetsAt: string;
   isRestricted: boolean;
   canSearchTarget: (target: string) => boolean;
 } {
+  const defaultReset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   if (!emailOrUserId) {
     return {
       plan: "free",
       searchesUsed: 0,
-      searchLimit: 5,
+      searchLimit: 1,
+      resetsAt: defaultReset,
       isRestricted: false,
       canSearchTarget: () => true,
     };
@@ -393,6 +407,7 @@ export function getUserPlanAndUsage(emailOrUserId: string | null | undefined): {
       plan: "unlimited",
       searchesUsed: 0,
       searchLimit: 999999,
+      resetsAt: defaultReset,
       isRestricted: false,
       canSearchTarget: () => true,
     };
@@ -403,35 +418,40 @@ export function getUserPlanAndUsage(emailOrUserId: string | null | undefined): {
     return {
       plan: "free",
       searchesUsed: 0,
-      searchLimit: 5,
+      searchLimit: 1,
+      resetsAt: defaultReset,
       isRestricted: false,
       canSearchTarget: () => true,
     };
   }
 
-  // Monthly reset check
+  // Weekly rolling 7-day reset check from signup/purchase date
   const now = new Date();
-  if (user.search_month_reset && new Date(user.search_month_reset).getTime() < now.getTime()) {
-    user.searches_this_month = 0;
-    user.searched_accounts = [];
-    user.search_month_reset = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const resetTime = user.search_week_reset ? new Date(user.search_week_reset).getTime() : 0;
+  if (resetTime && resetTime < now.getTime()) {
+    let nextReset = resetTime;
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    while (nextReset < now.getTime()) {
+      nextReset += sevenDaysMs;
+    }
+    user.searches_this_week = 0;
+    user.search_week_reset = new Date(nextReset).toISOString();
     persistVault();
   }
 
-  const searched = user.searched_accounts || [];
   const plan = user.plan || "free";
-  const limit = plan === "unlimited" ? 999999 : plan === "standard" ? 10 : 5;
+  const limit = plan === "unlimited" ? 30 : plan === "standard" ? 10 : 1;
+  const searchesUsed = typeof user.searches_this_week === "number" ? user.searches_this_week : (user.searches_this_month || 0);
 
   return {
     plan,
-    searchesUsed: searched.length,
+    searchesUsed,
     searchLimit: limit,
-    isRestricted: plan !== "unlimited" && searched.length >= limit,
-    canSearchTarget: (target: string) => {
-      const cleanTarget = normalizeTargetUsername(target);
-      if (plan === "unlimited") return true;
-      if (searched.includes(cleanTarget)) return true;
-      return searched.length < limit;
+    resetsAt: user.search_week_reset || defaultReset,
+    isRestricted: plan !== "unlimited" && !isVipEmail(email) && searchesUsed >= limit,
+    canSearchTarget: (_target: string) => {
+      if (isVipEmail(email)) return true;
+      return searchesUsed < limit;
     },
   };
 }
@@ -463,28 +483,45 @@ export function recordUserSearch(emailOrUserId: string, targetUsername: string):
 
   const user = getOrCreateUser(email);
   if (!user.searched_accounts) user.searched_accounts = [];
-
-  const searched = user.searched_accounts;
-  const plan = user.plan || "free";
-  const limit = plan === "unlimited" ? 999999 : plan === "standard" ? 10 : 5;
-
-  if (!searched.includes(cleanTarget)) {
-    if (plan !== "unlimited" && searched.length >= limit) {
-      return {
-        allowed: false,
-        searchesUsed: searched.length,
-        limit,
-        plan,
-      };
-    }
-    searched.push(cleanTarget);
-    user.searches_this_month = searched.length;
-    persistVault();
+  if (typeof user.searches_this_week !== "number") {
+    user.searches_this_week = 0;
   }
+
+  // Weekly rolling 7-day reset check from signup/purchase date
+  const now = new Date();
+  const resetTime = user.search_week_reset ? new Date(user.search_week_reset).getTime() : 0;
+  if (resetTime && resetTime < now.getTime()) {
+    let nextReset = resetTime;
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    while (nextReset < now.getTime()) {
+      nextReset += sevenDaysMs;
+    }
+    user.searches_this_week = 0;
+    user.search_week_reset = new Date(nextReset).toISOString();
+  }
+
+  const plan = user.plan || "free";
+  const limit = plan === "unlimited" ? 30 : plan === "standard" ? 10 : 1;
+
+  if (user.searches_this_week >= limit) {
+    return {
+      allowed: false,
+      searchesUsed: user.searches_this_week,
+      limit,
+      plan,
+    };
+  }
+
+  user.searches_this_week += 1;
+  user.searches_this_month = (user.searches_this_month || 0) + 1;
+  if (!user.searched_accounts.includes(cleanTarget)) {
+    user.searched_accounts.push(cleanTarget);
+  }
+  persistVault();
 
   return {
     allowed: true,
-    searchesUsed: searched.length,
+    searchesUsed: user.searches_this_week,
     limit,
     plan,
   };
@@ -757,12 +794,12 @@ export function saveAuditCache(targetUsername: string, auditType: string, data: 
 }
 
 /**
- * Get cached audit data with expiration check
+ * Get cached audit data with expiration check (60s anti-spam debounce window)
  */
 export function getAuditCache(
   targetUsername: string,
   auditType: string,
-  maxAgeHours: number = 12
+  maxAgeSeconds: number = 60
 ): any | null {
   loadVault();
   const cleanTarget = normalizeTargetUsername(targetUsername);
@@ -773,10 +810,10 @@ export function getAuditCache(
     try {
       const createdAt = new Date(entry.created_at).getTime();
       const ageMs = Date.now() - createdAt;
-      const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
+      const maxAgeMs = maxAgeSeconds * 1000;
 
       if (ageMs > maxAgeMs) {
-        return null; // Expired cache -> trigger fresh scan
+        return null; // Expired cache -> trigger fresh live scan
       }
 
       return JSON.parse(entry.data_json);

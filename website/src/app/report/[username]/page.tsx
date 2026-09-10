@@ -67,7 +67,7 @@ export default function ReportPage() {
 
       if (unlockedParam === "true") {
         setUnlockedAudits((prev) => Array.from(new Set([...prev, targetUser])));
-        trackPurchase(planParam || "standard", planParam === "unlimited" ? 9.99 : 4.99, targetUser);
+        trackPurchase(planParam || "standard", planParam === "unlimited" ? 9.99 : 3.99, targetUser);
       }
 
       const activeEmail = emailParam || localStorage.getItem("gs_user_email");
@@ -98,7 +98,7 @@ export default function ReportPage() {
     const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("gs_user_email") : null);
     if (!activeEmail) {
       const guestSearches = JSON.parse(localStorage.getItem("gs_guest_searches") || "[]");
-      if (!guestSearches.includes(cleanUser) && guestSearches.length >= 5) {
+      if (!guestSearches.includes(cleanUser) && guestSearches.length >= 1) {
         handleOpenCheckout();
         return;
       }
@@ -141,7 +141,7 @@ export default function ReportPage() {
           }
         }
       } else {
-        if (json.error === "MONTHLY_LIMIT_REACHED") {
+        if (json.error === "MONTHLY_LIMIT_REACHED" || json.error === "WEEKLY_LIMIT_REACHED") {
           handleOpenUpgrade();
         } else if (json.error === "FREE_LIMIT_REACHED") {
           handleOpenCheckout();
@@ -159,7 +159,7 @@ export default function ReportPage() {
 
   const handleToggleTheme = () => setIsDark((prev) => !prev);
   const handleOpenCheckout = () => {
-    trackInitiateCheckout("standard", 4.99);
+    trackInitiateCheckout("standard", 3.99);
     setIsCheckoutOpen(true);
   };
   const handleCloseCheckout = () => setIsCheckoutOpen(false);
@@ -189,7 +189,7 @@ export default function ReportPage() {
     setUserEmail(email);
     localStorage.setItem("gs_user_email", email);
     setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
-    trackPurchase("standard", 4.99, cleanTarget);
+    trackPurchase("standard", 3.99, cleanTarget);
     if (auditData) {
       setAuditData({
         ...auditData,

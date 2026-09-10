@@ -102,13 +102,13 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           </div>
           <div>
             <h3 className="text-base sm:text-lg font-black text-zinc-900 dark:text-white flex items-center gap-1.5">
-              <span>Limit Reached</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 font-bold border border-amber-300 dark:border-amber-800 font-mono">
-                PASS
+              <span>Weekly Limit Reached (10/10)</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 font-bold border border-purple-300 dark:border-purple-800 font-mono">
+                PRO
               </span>
             </h3>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Unlock 48-hour unlimited forensic audits across any accounts
+              Upgrade to Pro for 30 searches per week &amp; priority scraping
             </p>
           </div>
         </div>
@@ -117,31 +117,31 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
         <div className="p-4 rounded-xl bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-800/60 dark:to-zinc-850/80 border border-zinc-200 dark:border-zinc-750 mb-4">
           <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-700 mb-3">
             <div className="flex items-center gap-1.5 text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">
-              <InfinityIcon className="w-4 h-4 text-sky-500" />
-              <span>48-Hour All-Access Pass</span>
+              <InfinityIcon className="w-4 h-4 text-purple-500" />
+              <span>GhostSweep Pro</span>
             </div>
             <div className="text-right">
               <span className="text-base font-black text-zinc-900 dark:text-white font-mono">$9.99</span>
-              <span className="text-[10px] text-sky-600 dark:text-sky-400 font-semibold block">One-Time</span>
+              <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold block">/ Month</span>
             </div>
           </div>
 
           <ul className="space-y-2 text-xs text-zinc-600 dark:text-zinc-300">
             <li className="flex items-center gap-2">
               <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span className="font-semibold text-zinc-800 dark:text-zinc-100">Unlimited 48-Hour Account Audits</span>
+              <span className="font-semibold text-zinc-800 dark:text-zinc-100">30 Searches Every Week (Resets Weekly)</span>
             </li>
             <li className="flex items-center gap-2">
               <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span>Complete chronological follow history (up to 500 accounts)</span>
+              <span>Priority live scraping engine (zero wait)</span>
             </li>
             <li className="flex items-center gap-2">
               <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span>Full Girl &amp; Guy demographic ratio filters</span>
+              <span>Diff radar: automatic detection of new follows &amp; unfollows</span>
             </li>
             <li className="flex items-center gap-2">
               <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span>Instant one-click CSV report downloads</span>
+              <span>Cancel anytime with 1 click &bull; 100% Anonymous</span>
             </li>
           </ul>
         </div>
@@ -164,30 +164,30 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
               placeholder="alex@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:border-sky-500 dark:focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-colors placeholder:text-zinc-400"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:border-purple-500 dark:focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors placeholder:text-zinc-400"
             />
           </div>
 
           <button
             type="submit"
             disabled={isProcessing}
-            className="w-full py-3 px-4 rounded-xl font-black text-xs sm:text-sm text-zinc-950 bg-gradient-to-r from-amber-400 via-rose-400 to-purple-400 hover:from-amber-300 hover:to-purple-300 shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+            className="w-full py-3 px-4 rounded-xl font-black text-xs sm:text-sm text-white bg-gradient-to-r from-purple-600 via-rose-500 to-amber-500 hover:from-purple-500 hover:to-amber-400 shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
           >
             {isProcessing ? (
               <span className="flex items-center gap-2">
-                <span className="w-3.5 h-3.5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
+                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 Connecting to Stripe...
               </span>
             ) : (
               <>
-                <span>Get 48-Hour Weekend Pass ($9.99) ➔</span>
+                <span>Upgrade to Pro ($9.99/mo) ➔</span>
               </>
             )}
           </button>
         </form>
 
         <p className="text-[11px] text-center text-zinc-400 dark:text-zinc-500 mt-3 leading-relaxed">
-          One-time payment. Never auto-renews. Covered by our 100% money-back guarantee.
+          Monthly subscription. Cancel anytime from your account dashboard.
         </p>
       </div>
     </div>

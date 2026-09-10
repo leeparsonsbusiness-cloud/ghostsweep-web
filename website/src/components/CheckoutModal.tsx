@@ -10,7 +10,9 @@ import {
   Check, 
   Sparkles, 
   ArrowRight,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  Zap
 } from "lucide-react";
 import confetti from "canvas-confetti";
 
@@ -32,7 +34,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   onOpenLegal 
 }) => {
   const [email, setEmail] = useState(userEmail || "");
-  const [selectedPlan, setSelectedPlan] = useState<"standard" | "unlimited">("standard");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -56,7 +57,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         body: JSON.stringify({ 
           email: email.trim(),
           target_username: targetUsername || "theleeparsons",
-          plan: selectedPlan
+          plan: "standard"
         }),
       });
 
@@ -64,12 +65,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
       if (data.success) {
         if (data.url) {
-          // Redirect to Stripe Checkout Session
+          // Redirect to Stripe Hosted Checkout
           window.location.href = data.url;
           return;
         }
 
-        // Instant Unlock
+        // Instant Unlock (Sandbox/Dev)
         setIsSuccess(true);
         onSuccessUnlock(email.trim(), targetUsername);
         confetti({
@@ -88,9 +89,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   };
 
-  const isUnlimited = selectedPlan === "unlimited";
-  const price = isUnlimited ? "$9.99" : "$4.99";
-
   return (
     <div id="checkout-modal-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-md rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 shadow-xl overflow-hidden transition-colors">
@@ -105,73 +103,60 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
         {!isSuccess ? (
           <div>
-            {/* Header */}
+            {/* Header: Emotional & Curiosity Marketing */}
             <div className="flex items-center gap-3 mb-4">
-              <div className="relative w-9 h-9 shrink-0">
+              <div className="relative w-10 h-10 shrink-0">
                 <Image
                   src="/logo.png"
                   alt="GhostSweep Logo"
-                  width={36}
-                  height={36}
+                  width={40}
+                  height={40}
                   className="object-contain"
                 />
               </div>
               <div>
-                <h3 className="text-base font-bold text-zinc-900 dark:text-white">
-                  Unlock Forensic Intelligence
+                <h3 className="text-base sm:text-lg font-black text-zinc-900 dark:text-white leading-tight">
+                  Unlock to See the Truth
                 </h3>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Instant chronological order, timestamps &amp; hidden follows for @{targetUsername || "theleeparsons"}
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  Who did <strong className="text-zinc-900 dark:text-white">@{targetUsername || "theleeparsons"}</strong> recently follow? Unmask their activity now.
                 </p>
               </div>
             </div>
 
-            {/* Plan Selection Tabs */}
-            <div className="grid grid-cols-2 gap-2 p-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-xl mb-4 border border-zinc-200 dark:border-zinc-700">
-              <button
-                type="button"
-                onClick={() => setSelectedPlan("standard")}
-                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 ${
-                  !isUnlimited
-                    ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm border border-zinc-200 dark:border-zinc-700"
-                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
-                }`}
-              >
-                <span>Single Unlock</span>
-                <span className="text-[11px] font-mono text-sky-600 dark:text-sky-400">$4.99 One-Time</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedPlan("unlimited")}
-                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 ${
-                  isUnlimited
-                    ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm border border-zinc-200 dark:border-zinc-700"
-                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
-                }`}
-              >
-                <span className="flex items-center gap-1">
-                  <span>48-Hour Pass</span>
-                  <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-500 font-bold">HOT</span>
-                </span>
-                <span className="text-[11px] font-mono text-sky-600 dark:text-sky-400">$9.99 One-Time</span>
-              </button>
-            </div>
-
-            {/* Order Summary Box */}
+            {/* Psychological Value Prop Card */}
             <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 mb-4">
               <div className="flex items-center justify-between text-xs pb-2.5 border-b border-zinc-200 dark:border-zinc-700">
-                <span className="text-zinc-600 dark:text-zinc-300 font-medium">
-                  {!isUnlimited ? `Single Audit: @${targetUsername || "profile"}` : "48-Hour Unlimited Weekend Pass"}
+                <span className="text-zinc-700 dark:text-zinc-200 font-bold">
+                  Full Report Access &bull; @{targetUsername || "profile"}
                 </span>
-                <span className="text-zinc-900 dark:text-white font-bold font-mono text-sm">{price}</span>
+                <span className="text-zinc-900 dark:text-white font-black font-mono text-base text-sky-500">
+                  $3.99
+                </span>
               </div>
-              <div className="flex items-center justify-between text-[11px] pt-2 text-zinc-500 dark:text-zinc-400">
-                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
+
+              {/* Curiosity Bullets */}
+              <ul className="space-y-1.5 pt-2.5 text-xs text-zinc-600 dark:text-zinc-300">
+                <li className="flex items-center gap-2">
+                  <Eye className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                  <span><b>Chronological order:</b> See exactly who they followed most recently</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span><b>10 deep searches per week</b> included under your account</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span><b>100% Anonymous:</b> They will never know you searched</span>
+                </li>
+              </ul>
+
+              <div className="flex items-center justify-between text-[11px] pt-2.5 mt-2 border-t border-zinc-200 dark:border-zinc-700/60 text-zinc-500 dark:text-zinc-400">
+                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  Instant Web Unlock
+                  Instant Unlock
                 </span>
-                <span className="font-semibold text-sky-600 dark:text-sky-400">One-Time (No Subscription)</span>
+                <span className="font-bold text-sky-600 dark:text-sky-400">One-Time Fee (No Subscription)</span>
               </div>
             </div>
 
@@ -186,7 +171,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <form onSubmit={handlePay} className="space-y-3.5">
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5">
-                  Report Delivery &amp; Access Email
+                  Your Account Email
                 </label>
                 <input
                   id="checkout-email-input"
@@ -197,6 +182,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:border-sky-500 dark:focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-colors placeholder:text-zinc-400"
                 />
+                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1">
+                  Your audits are saved securely in your private history dashboard.
+                </p>
               </div>
 
               <div>
@@ -219,23 +207,23 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 id="checkout-submit-btn"
                 type="submit"
                 disabled={isProcessing}
-                className="w-full mt-2 py-3 px-4 rounded-xl font-black text-xs sm:text-sm text-zinc-950 bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-400 shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                className="w-full mt-2 py-3.5 px-4 rounded-xl font-black text-xs sm:text-sm text-zinc-950 bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-400 shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
               >
                 {isProcessing ? (
                   <span className="flex items-center gap-2">
                     <span className="w-3.5 h-3.5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
-                    Processing Payment &amp; Unlocking...
+                    Connecting to Secure Checkout...
                   </span>
                 ) : (
                   <>
-                    <span>Unlock Forensic Intelligence ({price}) ➔</span>
+                    <span>Unlock to See the Truth ($3.99) ➔</span>
                   </>
                 )}
               </button>
             </form>
 
             <p className="text-[11px] text-center text-zinc-400 dark:text-zinc-500 mt-3.5 leading-relaxed">
-              By clicking Pay, you agree to our{" "}
+              By clicking Unlock, you agree to our{" "}
               <button
                 type="button"
                 onClick={() => onOpenLegal("terms")}
@@ -250,7 +238,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 className="underline hover:text-zinc-700 dark:hover:text-zinc-300"
               >
                 Privacy Policy
-              </button>.
+              </button>. One-time fee, never auto-renews.
             </p>
           </div>
         ) : (
@@ -264,16 +252,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               Audit Unlocked!
             </h3>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
-              Full forensic intelligence access for <strong className="text-zinc-900 dark:text-white">@{targetUsername}</strong> is now unlocked.
+              Full chronological intelligence for <strong className="text-zinc-900 dark:text-white">@{targetUsername}</strong> is now unlocked.
             </p>
 
             <button
               type="button"
               onClick={onClose}
-              className="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-zinc-950 bg-sky-400 hover:bg-sky-300 dark:bg-sky-500 dark:hover:bg-sky-400 transition-all flex items-center justify-center gap-2 shadow-sm"
+              className="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-zinc-950 bg-sky-400 hover:bg-sky-300 dark:bg-sky-500 dark:hover:bg-sky-400 transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
             >
               <Sparkles className="w-4 h-4" />
-              <span>View Unlocked Accounts Table</span>
+              <span>View Unlocked Report</span>
             </button>
           </div>
         )}

@@ -2,7 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
-import { Sun, Moon, User, LogOut } from "lucide-react";
+import { Sun, Moon, User, LogOut, Clock } from "lucide-react";
 
 interface MinimalHeaderProps {
   onOpenCheckout?: () => void;
@@ -45,8 +45,17 @@ export const MinimalHeader: React.FC<MinimalHeaderProps> = ({
           </span>
         </a>
 
-        {/* Right: Theme toggle & Sign In / User / Sign Out controls */}
+        {/* Right: Theme toggle, My History & Sign In / User / Sign Out controls */}
         <div className="flex items-center gap-2 sm:gap-2.5">
+          <a
+            href="/history"
+            id="navbar-history-link"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <Clock className="w-3.5 h-3.5 text-sky-500" />
+            <span className="hidden sm:inline">My History</span>
+          </a>
+
           <button
             onClick={onToggleTheme}
             aria-label="Toggle theme"

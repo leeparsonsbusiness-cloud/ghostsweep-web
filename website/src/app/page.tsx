@@ -68,7 +68,7 @@ export default function Home() {
       if (unlockedParam === "true" && usernameParam) {
         const cleanTarget = usernameParam.replace(/^@/, "").toLowerCase();
         setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
-        trackPurchase(planParam || "standard", planParam === "unlimited" ? 9.99 : 4.99, cleanTarget);
+        trackPurchase(planParam || "standard", planParam === "unlimited" ? 9.99 : 3.99, cleanTarget);
         handleAuditSubmit(cleanTarget);
       } else if (usernameParam) {
         handleAuditSubmit(usernameParam);
@@ -118,11 +118,11 @@ export default function Home() {
     // Track analytics event
     trackSearchEvent(cleanUser);
 
-    // Check Guest search limit (5 searches max for free guests)
+    // Check Guest search limit (1 free search for guests)
     const activeEmail = userEmail || (typeof window !== "undefined" ? localStorage.getItem("gs_user_email") : null);
     if (!activeEmail) {
       const guestSearches = JSON.parse(localStorage.getItem("gs_guest_searches") || "[]");
-      if (!guestSearches.includes(cleanUser) && guestSearches.length >= 5) {
+      if (!guestSearches.includes(cleanUser) && guestSearches.length >= 1) {
         handleOpenCheckout();
         return;
       }
@@ -169,7 +169,7 @@ export default function Home() {
           }
         }
       } else {
-        if (json.error === "MONTHLY_LIMIT_REACHED") {
+        if (json.error === "MONTHLY_LIMIT_REACHED" || json.error === "WEEKLY_LIMIT_REACHED") {
           handleOpenUpgrade();
         } else if (json.error === "FREE_LIMIT_REACHED") {
           handleOpenCheckout();
@@ -190,7 +190,7 @@ export default function Home() {
   };
 
   const handleOpenCheckout = () => {
-    trackInitiateCheckout("standard", 4.99);
+    trackInitiateCheckout("standard", 3.99);
     setIsCheckoutOpen(true);
   };
 
@@ -230,7 +230,7 @@ export default function Home() {
     setUserEmail(email);
     localStorage.setItem("gs_user_email", email);
     setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
-    trackPurchase("standard", 4.99, cleanTarget);
+    trackPurchase("standard", 3.99, cleanTarget);
     if (auditData) {
       setAuditData({
         ...auditData,

@@ -46,7 +46,7 @@ export function trackSearchEvent(username: string) {
 /**
  * Track checkout modal opened / initiated
  */
-export function trackInitiateCheckout(plan: "standard" | "unlimited" = "standard", price: number = 4.99) {
+export function trackInitiateCheckout(plan: "standard" | "unlimited" = "standard", price: number = 3.99) {
   if (typeof window === "undefined") return;
 
   const value = plan === "unlimited" ? 9.99 : price;
@@ -82,7 +82,7 @@ export function trackInitiateCheckout(plan: "standard" | "unlimited" = "standard
 /**
  * Track successful subscription / purchase unlock
  */
-export function trackPurchase(plan: "standard" | "unlimited" = "standard", price: number = 4.99, targetUsername?: string) {
+export function trackPurchase(plan: "standard" | "unlimited" = "standard", price: number = 3.99, targetUsername?: string) {
   if (typeof window === "undefined") return;
 
   const value = plan === "unlimited" ? 9.99 : price;

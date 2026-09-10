@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserUnlockedAudits } from "@/lib/db";
+import { getUserUnlockedAudits, getUserPlanAndUsage } from "@/lib/db";
 import { verifySessionToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +38,9 @@ export async function GET(req: NextRequest) {
       success: true,
       authenticated: false,
       unlockedAudits: [],
+      plan: "free",
+      searchesUsed: 0,
+      searchLimit: 1,
     });
   }
 
@@ -46,10 +49,16 @@ export async function GET(req: NextRequest) {
     unlockedAudits = getUserUnlockedAudits(email);
   }
 
+  const usage = getUserPlanAndUsage(email);
+
   return NextResponse.json({
     success: true,
     authenticated: true,
     email,
     unlockedAudits,
+    plan: usage.plan,
+    searchesUsed: usage.searchesUsed,
+    searchLimit: usage.searchLimit,
+    resetsAt: usage.resetsAt,
   });
 }

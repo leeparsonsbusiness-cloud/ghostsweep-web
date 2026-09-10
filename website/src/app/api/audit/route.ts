@@ -671,9 +671,9 @@ export async function POST(req: NextRequest) {
 
     const unlocked = isAuditUnlocked(userEmail, cleanUsername);
 
-    // Check cache first (12h expiration unless forceRefresh is true)
+    // Check cache first (60s anti-spam debounce window)
     if (!forceRefresh) {
-      const cached = getAuditCache(cleanUsername, targetType, 12);
+      const cached = getAuditCache(cleanUsername, targetType, 60);
       if (cached) {
         return NextResponse.json({ success: true, data: maskResultForPaywall(cached, unlocked) });
       }
@@ -687,12 +687,13 @@ export async function POST(req: NextRequest) {
           return NextResponse.json(
             {
               success: false,
-              error: "MONTHLY_LIMIT_REACHED",
-              details: "You have reached your 10 account audits limit on the Standard Plan. Upgrade to the 48-Hour Weekend Pass for $9.99.",
+              error: "WEEKLY_LIMIT_REACHED",
+              details: "You have reached your 10 weekly searches on the Standard Plan. Upgrade to Pro for 30 searches per week ($9.99/mo).",
               limitReached: true,
               plan: "standard",
               searchesUsed: usage.searchesUsed,
               limit: 10,
+              resetsAt: usage.resetsAt,
             },
             { status: 403 }
           );
@@ -701,11 +702,25 @@ export async function POST(req: NextRequest) {
             {
               success: false,
               error: "FREE_LIMIT_REACHED",
-              details: "You have reached your 5 free searches limit. Unlock full report access for $4.99.",
+              details: "You have used your 1 free profile search. Unlock to see the truth ($3.99) for full access and 10 searches per week.",
               limitReached: true,
               plan: "free",
               searchesUsed: usage.searchesUsed,
-              limit: 5,
+              limit: 1,
+            },
+            { status: 403 }
+          );
+        } else if (usage.plan === "unlimited") {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "PRO_LIMIT_REACHED",
+              details: "You have reached your 30 weekly searches on Pro. Resets weekly.",
+              limitReached: true,
+              plan: "unlimited",
+              searchesUsed: usage.searchesUsed,
+              limit: 30,
+              resetsAt: usage.resetsAt,
             },
             { status: 403 }
           );
@@ -779,9 +794,9 @@ export async function GET(req: NextRequest) {
 
     const unlocked = isAuditUnlocked(userEmail, cleanUsername);
 
-    // Check cache first (12h expiration unless forceRefresh is true)
+    // Check cache first (60s anti-spam debounce window)
     if (!forceRefresh) {
-      const cached = getAuditCache(cleanUsername, targetType, 12);
+      const cached = getAuditCache(cleanUsername, targetType, 60);
       if (cached) {
         return NextResponse.json({ success: true, data: maskResultForPaywall(cached, unlocked) });
       }
@@ -795,12 +810,40 @@ export async function GET(req: NextRequest) {
           return NextResponse.json(
             {
               success: false,
-              error: "MONTHLY_LIMIT_REACHED",
-              details: "You have reached your 10 account audits limit on the Standard Plan. Upgrade to the 48-Hour Weekend Pass for $9.99.",
+              error: "WEEKLY_LIMIT_REACHED",
+              details: "You have reached your 10 weekly searches on the Standard Plan. Upgrade to Pro for 30 searches per week ($9.99/mo).",
               limitReached: true,
               plan: "standard",
               searchesUsed: usage.searchesUsed,
               limit: 10,
+              resetsAt: usage.resetsAt,
+            },
+            { status: 403 }
+          );
+        } else if (usage.plan === "free") {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "FREE_LIMIT_REACHED",
+              details: "You have used your 1 free profile search. Unlock to see the truth ($3.99) for full access and 10 searches per week.",
+              limitReached: true,
+              plan: "free",
+              searchesUsed: usage.searchesUsed,
+              limit: 1,
+            },
+            { status: 403 }
+          );
+        } else if (usage.plan === "unlimited") {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "PRO_LIMIT_REACHED",
+              details: "You have reached your 30 weekly searches on Pro. Resets weekly.",
+              limitReached: true,
+              plan: "unlimited",
+              searchesUsed: usage.searchesUsed,
+              limit: 30,
+              resetsAt: usage.resetsAt,
             },
             { status: 403 }
           );
