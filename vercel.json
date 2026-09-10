@@ -3,5 +3,11 @@
   "framework": "nextjs",
   "buildCommand": "npm --prefix website run build",
   "installCommand": "npm --prefix website install",
-  "outputDirectory": "website/.next"
+  "outputDirectory": "website/.next",
+  "crons": [
+    {
+      "path": "/api/cron/radar-sweep",
+      "schedule": "0 */6 * * *"
+    }
+  ]
 }
