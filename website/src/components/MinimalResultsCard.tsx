@@ -404,22 +404,35 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                                     ✓
                                   </span>
                                 )}
-                                <span className="text-[10px] px-1.5 py-0.2 rounded-md font-bold bg-sky-100 dark:bg-sky-900/80 text-sky-700 dark:text-sky-300 shrink-0 font-mono">
-                                  #1 MOST RECENT
+                                <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-bold shrink-0 font-mono ${
+                                  acc.isNewFollow 
+                                    ? "bg-emerald-100 dark:bg-emerald-900/80 text-emerald-700 dark:text-emerald-300"
+                                    : "bg-sky-100 dark:bg-sky-900/80 text-sky-700 dark:text-sky-300"
+                                }`}>
+                                  {acc.isNewFollow ? "#1 NEW FOLLOW" : "#1 MOST RECENT"}
                                 </span>
                               </div>
                               <span className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate block">
-                                {acc.name || "Active Account"} &bull; {acc.gender === "female" ? "👩 Female" : "👨 Male"}
+                                {acc.name || "Active Account"} &bull; {
+                                  acc.gender === "female" ? "👩 Female" : 
+                                  acc.gender === "male" ? "👨 Male" : 
+                                  acc.gender === "brand" ? "🏢 Brand" : 
+                                  "👤 Profile"
+                                }
                               </span>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2 self-start sm:self-auto">
-                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                              LIVE FOLLOW
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                              acc.isNewFollow
+                                ? "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                                : "bg-sky-100 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800"
+                            }`}>
+                              {acc.isNewFollow ? "NEW DETECTED" : "LIVE FOLLOW"}
                             </span>
                             <span className="text-[10px] text-zinc-400 font-mono">
-                              {acc.timestampLabel || "Just now"}
+                              {acc.timestampLabel || "Audited Follow"}
                             </span>
                           </div>
                         </div>

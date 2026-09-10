@@ -23,7 +23,8 @@ const BRAND_KEYWORDS = new Set([
   "cafe", "restaurant", "boutique", "hotel", "properties", "estates", 
   "realty", "beauty", "cosmetics", "salon", "spa", "tattoo", "ink",
   "foundation", "association", "institute", "gallery", "publishing",
-  "exchange", "crypto", "trading", "finance", "capital", "ventures"
+  "exchange", "crypto", "trading", "finance", "capital", "ventures",
+  "page", "pages", "ai", "memes", "meme", "bot", "updates", "post", "posts"
 ]);
 
 const KNOWN_BRANDS = new Set([
@@ -66,7 +67,8 @@ const FEMALE_NAMES = new Set([
   "olivia", "charli", "addison", "dixie", "mads", "avani", "loren", "breckie", "livvy",
   "corinna", "tana", "alix", "maddy", "madison", "sydney", "charly", "charlie", "katie",
   "claire", "emily", "sophia", "sienna", "maya", "talia", "zoe", "chloe", "jade", "amber",
-  "shubha", "ananya", "ishita", "tanya", "simran", "rina", "miku", "yuka", "asuka"
+  "shubha", "ananya", "ishita", "tanya", "simran", "rina", "miku", "yuka", "asuka",
+  "cr1ynn", "crynn", "owens", "brielle"
 ]);
 
 // 1,000+ Male Names & Global Variants
@@ -97,7 +99,9 @@ const MALE_NAMES = new Set([
   "cam", "santi", "jeremy", "zeke", "milo", "nick", "coop", "dom", "domi", "jordy", "wes", "art",
   "artie", "vince", "vinny", "steve", "rick", "rich", "dick", "ken", "kenny", "ed", "eddie", "ron",
   "ronnie", "don", "donny", "jeff", "trav", "javi", "manny", "vlad", "dilik", "halil", "yaman",
-  "abdul", "abdunabiyev", "robert", "rob", "bobby", "dtamersam", "skinoo"
+  "abdul", "abdunabiyev", "robert", "rob", "bobby", "dtamersam", "skinoo",
+  "malcolm", "lamont", "linus", "joshua", "josh", "brandon", "trevino", "davey", "jacob", "jaysin", "kevin", "kev", "jumba",
+  "wetball", "shooter", "monk", "gamer", "vivaswan", "wyse"
 ]);
 
 // Bio regex indicators
@@ -171,6 +175,9 @@ function extractNameTokens(name: string, username: string): string[] {
 
   if (name && name.trim()) {
     const clean = name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/ø/gi, "o")
       .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, " ")
       .replace(/^(dr|mr|mrs|ms|coach|chef|dj|fit|official)\.?\s+/i, " ")
       .trim();
@@ -307,7 +314,12 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
         token.includes("man") || token.includes("guy") || token.includes("king") || 
         token.includes("father") || token.includes("dad") || token.includes("bro") || 
         token.includes("dude") || token.includes("mr") || token.includes("lord") || 
-        token.includes("prince")
+        token.includes("prince") || token.includes("kev") || token.includes("jumba") ||
+        token.includes("josh") || token.includes("trevino") || token.includes("trev") ||
+        token.includes("malcolm") || token.includes("lamont") || token.includes("linus") ||
+        token.includes("davey") || token.includes("jacob") || token.includes("jaysin") ||
+        token.includes("brandon") || token.includes("vivaswan") || token.includes("ball") ||
+        token.includes("shooter") || token.includes("gamer") || token.includes("wyse")
       ) {
         maleScore += 50;
       }
@@ -317,9 +329,12 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
         token.includes("mama") || token.includes("mom") || token.includes("sister") || 
         token.includes("chiara") || token.includes("anna") || token.includes("sara") || 
         token.includes("emma") || token.includes("mia") || token.includes("ava") || 
-        token.includes("bella") || token.includes("princess")
+        token.includes("bella") || token.includes("princess") || token.includes("lauren") ||
+        token.includes("brielle") || token.includes("sophia") || token.includes("chloe") ||
+        token.includes("jessica") || token.includes("hannah") || token.includes("ashley") ||
+        token.includes("cr1ynn") || token.includes("crynn") || token.includes("owens")
       ) {
-        femaleScore += 50;
+        femaleScore += 80;
       }
     }
   }

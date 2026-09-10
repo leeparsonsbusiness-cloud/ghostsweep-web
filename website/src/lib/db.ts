@@ -788,6 +788,22 @@ export function getAuditCache(
 }
 
 /**
+ * Clear cached audit entries
+ */
+export function clearAuditCache(targetUsername?: string): void {
+  loadVault();
+  if (targetUsername) {
+    const cleanTarget = normalizeTargetUsername(targetUsername);
+    delete memoryVault.auditCache[`${cleanTarget}:following`];
+    delete memoryVault.auditCache[`${cleanTarget}:followers`];
+  } else {
+    memoryVault.auditCache = {};
+  }
+  persistVault();
+}
+
+
+/**
  * Create a magic authentication token for email login
  */
 export function createMagicToken(email: string): string {
