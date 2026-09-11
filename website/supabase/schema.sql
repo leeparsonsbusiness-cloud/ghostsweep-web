@@ -98,3 +98,30 @@ CREATE INDEX IF NOT EXISTS idx_audit_cache_key ON public.audit_cache(cache_key);
 CREATE INDEX IF NOT EXISTS idx_follows_snapshots_target ON public.follows_snapshots(target_username, target_type, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_tracked_targets_due ON public.tracked_targets(status, next_scan_at ASC);
 CREATE INDEX IF NOT EXISTS idx_activity_events_target ON public.activity_events(target_username, detected_at DESC);
+
+-- 10. Analytics Events (Funnel tracking, searches, conversions, revenue)
+CREATE TABLE IF NOT EXISTS public.analytics_events (
+    id BIGSERIAL PRIMARY KEY,
+    event_type TEXT NOT NULL, -- 'PAGE_VIEW', 'HEARTBEAT', 'SEARCH_INITIATED', 'PAYWALL_VIEWED', 'CHECKOUT_CLICKED', 'PURCHASE_COMPLETED'
+    session_id TEXT NOT NULL,
+    path TEXT,
+    referrer TEXT,
+    device_type TEXT DEFAULT 'mobile',
+    target_username TEXT,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 11. Active Sessions (Real-time live viewer counter)
+CREATE TABLE IF NOT EXISTS public.active_sessions (
+    session_id TEXT PRIMARY KEY,
+    last_ping TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    current_path TEXT,
+    device_type TEXT DEFAULT 'mobile',
+    referrer TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_analytics_events_created ON public.analytics_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_type ON public.analytics_events(event_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_target ON public.analytics_events(target_username);
+CREATE INDEX IF NOT EXISTS idx_active_sessions_ping ON public.active_sessions(last_ping DESC);

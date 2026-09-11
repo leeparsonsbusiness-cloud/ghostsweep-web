@@ -10,7 +10,7 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 import { AuthModal } from "@/components/AuthModal";
 import { LegalModal, LegalModalType } from "@/components/LegalModal";
 import { AuditResult } from "@/app/api/audit/route";
-import { trackSearchEvent, trackInitiateCheckout, trackPurchase } from "@/lib/analytics";
+import { trackSearchEvent, trackInitiateCheckout, trackPurchase, trackPaywallView } from "@/lib/analytics";
 
 export default function Home() {
   const [isDark, setIsDark] = useState(true);
@@ -152,6 +152,9 @@ export default function Home() {
 
       if (json.success && json.data) {
         setAuditData(json.data);
+        if (!unlockedAudits.includes(cleanUser)) {
+          trackPaywallView(cleanUser);
+        }
 
         // Record search in user history
         if (activeEmail) {
@@ -195,7 +198,7 @@ export default function Home() {
   };
 
   const handleOpenCheckout = () => {
-    trackInitiateCheckout("standard", 3.99);
+    trackInitiateCheckout("standard", 3.99, currentUsername);
     setIsCheckoutOpen(true);
   };
 
@@ -204,7 +207,7 @@ export default function Home() {
   };
 
   const handleOpenUpgrade = () => {
-    trackInitiateCheckout("unlimited", 9.99);
+    trackInitiateCheckout("unlimited", 9.99, currentUsername);
     setIsUpgradeOpen(true);
   };
 

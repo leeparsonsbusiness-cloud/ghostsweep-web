@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { unlockAudit, getOrCreateUser, setUserPlan, UserPlan } from "@/lib/db";
 import { sendPurchaseConfirmationEmail } from "@/lib/email";
+import { recordAnalyticsEvent } from "@/lib/analytics";
 
 export async function POST(req: NextRequest) {
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -45,6 +46,19 @@ export async function POST(req: NextRequest) {
         sendPurchaseConfirmationEmail(email, targetUsername, plan === "unlimited").catch((e) => {
           console.warn("[Stripe Webhook] Purchase confirmation email notice:", e.message);
         });
+
+        // Record server-verified purchase conversion
+        recordAnalyticsEvent({
+          event_type: "PURCHASE_COMPLETED",
+          session_id: session.id,
+          target_username: targetUsername,
+          metadata: {
+            amount: plan === "unlimited" ? 9.99 : 3.99,
+            plan,
+            email,
+            stripe_session_id: session.id,
+          },
+        }).catch(() => {});
       }
     } else if (event.type === "customer.subscription.deleted") {
       const subscription = event.data.object as Stripe.Subscription;
