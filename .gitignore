@@ -42,3 +42,5 @@ website/.data/
 .data/
 website/*.js
 
+.vercel
+.env*
