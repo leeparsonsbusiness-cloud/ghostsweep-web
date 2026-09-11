@@ -41,6 +41,21 @@ export const MinimalFooter: React.FC<MinimalFooterProps> = ({ onOpenLegal }) => 
           </button>
         </div>
 
+        {/* SEO Forensic Guides Row */}
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-zinc-400">
+          <a href="/blog" className="text-sky-500 hover:text-sky-400 transition-colors">
+            Forensic Guides
+          </a>
+          <span className="text-zinc-300 dark:text-zinc-800">•</span>
+          <a href="/blog/how-to-see-who-someone-recently-followed-on-instagram" className="hover:text-zinc-200 transition-colors">
+            Recent Follows Guide
+          </a>
+          <span className="text-zinc-300 dark:text-zinc-800">•</span>
+          <a href="/blog/is-instagram-following-list-in-chronological-order" className="hover:text-zinc-200 transition-colors">
+            Following List Algorithm
+          </a>
+        </div>
+
         {/* Disclaimer */}
         <p className="text-[11px] text-zinc-400 dark:text-zinc-400 max-w-lg leading-normal">
           © {new Date().getFullYear()} ghostsweep.info. Independent Instagram intelligence &amp; forensic audit utility. Not affiliated with, endorsed by, or connected to Instagram, Meta, or TikTok.
