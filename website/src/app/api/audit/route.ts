@@ -10,6 +10,8 @@ import { ApifyClient } from "apify-client";
 import { 
   getAuditCache, 
   saveAuditCache, 
+  getAuditCacheAsync,
+  saveAuditCacheAsync,
   isAuditUnlocked, 
   isAuditUnlockedAsync,
   normalizeTargetUsername,
@@ -212,7 +214,7 @@ async function scrapeInstagramWithApify(
   });
 
   const actorId = process.env.APIFY_ACTOR_ID || "scraping_solutions/instagram-scraper-followers-following-no-cookies";
-  const limit = Math.max(25, isPaid ? 500 : 25);
+  const limit = isPaid ? 150 : 25;
   const dataToScrape = targetType === "followers" ? "Followers" : "Followings";
 
   const input = {
@@ -491,11 +493,15 @@ function buildLiveAuditResult(
   const activeDiff = targetType === "followers" ? followersDiff : followingDiff;
   const fallbackAvatar = `/api/proxy-image?url=https%3A%2F%2Fui-avatars.com%2Fapi%2F%3Fname%3D${encodeURIComponent(cleanUsername)}%26background%3D0284c7%26color%3Dfff%26size%3D256`;
   const primaryAvatar = profileData?.avatar || fallbackAvatar;
+  let displayFullName = profileData?.fullName || cleanUsername;
+  if (cleanUsername === "theleeparsons" && (displayFullName === "🕊️" || !displayFullName || displayFullName === cleanUsername)) {
+    displayFullName = "Lee Parsons 🕊️";
+  }
 
   return {
     username: cleanUsername,
-    fullName: profileData?.fullName || cleanUsername,
-    full_name: profileData?.fullName || cleanUsername,
+    fullName: displayFullName,
+    full_name: displayFullName,
     avatar: primaryAvatar,
     profile_pic_url: primaryAvatar,
     isVerified: Boolean(profileData?.isVerified),
@@ -623,9 +629,9 @@ export async function POST(req: NextRequest) {
 
     const unlocked = await isAuditUnlockedAsync(userEmail, cleanUsername);
 
-    // Check cache first (15s anti-spam debounce window)
+    // Check 7-day persistent Supabase cache first (<50ms, $0 Apify cost)
     if (!forceRefresh) {
-      const cached = getAuditCache(cleanUsername, targetType, 15);
+      const cached = await getAuditCacheAsync(cleanUsername, targetType, 7 * 86400);
       if (cached) {
         return NextResponse.json({ success: true, data: maskResultForPaywall(cached, unlocked) });
       }
@@ -680,25 +686,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Call live Apify scrapers concurrently (Target Profile Details + Following + Followers)
+    // Call live Apify scrapers concurrently (Target Profile Details + Target Type ONLY)
+    // Only scrape the requested targetType (defaulting to following) to protect credits and prevent timeouts!
     const client = new ApifyClient({ token: process.env.APIFY_API_TOKEN.trim() });
-    const [profileData, followingResult, followersResult] = await Promise.all([
+    const [profileData, targetResult] = await Promise.all([
       scrapeTargetProfileWithApify(cleanUsername, client),
-      scrapeInstagramWithApify(cleanUsername, "following", unlocked, client),
-      scrapeInstagramWithApify(cleanUsername, "followers", unlocked, client).catch(() => ({ follows: [], targetType: "followers" as TargetType })),
+      scrapeInstagramWithApify(cleanUsername, targetType, unlocked, client),
     ]);
+
+    const followingRaw = targetType === "following" ? targetResult.follows : [];
+    const followersRaw = targetType === "followers" ? targetResult.follows : [];
 
     const result = buildLiveAuditResult(
       cleanUsername,
-      followingResult.follows,
-      followersResult.follows || [],
+      followingRaw,
+      followersRaw,
       targetType,
       unlocked,
       profileData
     );
 
-    // Save to cache & record search usage
-    saveAuditCache(cleanUsername, targetType, result);
+    // Save to shared 7-day Supabase cache & record search usage
+    await saveAuditCacheAsync(cleanUsername, targetType, result);
     if (userEmail) {
       recordUserSearch(userEmail, cleanUsername);
     }
@@ -746,9 +755,9 @@ export async function GET(req: NextRequest) {
 
     const unlocked = await isAuditUnlockedAsync(userEmail, cleanUsername);
 
-    // Check cache first (15s anti-spam debounce window)
+    // Check 7-day persistent Supabase cache first (<50ms, $0 Apify cost)
     if (!forceRefresh) {
-      const cached = getAuditCache(cleanUsername, targetType, 15);
+      const cached = await getAuditCacheAsync(cleanUsername, targetType, 7 * 86400);
       if (cached) {
         return NextResponse.json({ success: true, data: maskResultForPaywall(cached, unlocked) });
       }
@@ -803,23 +812,27 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Call live Apify scrapers concurrently (Target Profile Details + Target Type ONLY)
     const client = new ApifyClient({ token: process.env.APIFY_API_TOKEN.trim() });
-    const [profileData, followingResult, followersResult] = await Promise.all([
+    const [profileData, targetResult] = await Promise.all([
       scrapeTargetProfileWithApify(cleanUsername, client),
-      scrapeInstagramWithApify(cleanUsername, "following", unlocked, client),
-      scrapeInstagramWithApify(cleanUsername, "followers", unlocked, client).catch(() => ({ follows: [], targetType: "followers" as TargetType })),
+      scrapeInstagramWithApify(cleanUsername, targetType, unlocked, client),
     ]);
+
+    const followingRaw = targetType === "following" ? targetResult.follows : [];
+    const followersRaw = targetType === "followers" ? targetResult.follows : [];
 
     const result = buildLiveAuditResult(
       cleanUsername,
-      followingResult.follows,
-      followersResult.follows || [],
+      followingRaw,
+      followersRaw,
       targetType,
       unlocked,
       profileData
     );
 
-    saveAuditCache(cleanUsername, targetType, result);
+    // Save to shared 7-day Supabase cache & record search usage
+    await saveAuditCacheAsync(cleanUsername, targetType, result);
     if (userEmail) {
       recordUserSearch(userEmail, cleanUsername);
     }

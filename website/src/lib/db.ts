@@ -251,6 +251,50 @@ async function syncSearchHistoryToSupabase(entry: { user_email: string; target_u
   }
 }
 
+async function syncAuditCacheToSupabase(key: string, data: any) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  try {
+    const { error } = await supabase.from("audit_cache").upsert({
+      cache_key: key,
+      data: data,
+      created_at: new Date().toISOString(),
+    }, { onConflict: "cache_key" });
+    if (error) {
+      console.warn("[Supabase Sync] Audit cache upsert warning:", error.message);
+    }
+  } catch (err: any) {
+    console.warn("[Supabase Sync] Audit cache error:", err.message);
+  }
+}
+
+export async function getAuditCacheFromSupabase(key: string, maxAgeSeconds: number = 7 * 86400): Promise<any | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from("audit_cache")
+      .select("data, created_at")
+      .eq("cache_key", key)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    const createdAt = new Date(data.created_at).getTime();
+    const ageMs = Date.now() - createdAt;
+    const maxAgeMs = maxAgeSeconds * 1000;
+
+    if (ageMs > maxAgeMs) {
+      return null;
+    }
+
+    return data.data;
+  } catch (err: any) {
+    console.warn("[Supabase] Audit cache lookup error:", err.message);
+    return null;
+  }
+}
+
 /**
  * Direct Supabase database readers (bypasses serverless container memory isolation)
  */
@@ -304,7 +348,9 @@ export async function getUnlockedAuditsFromSupabase(email: string): Promise<stri
  * Normalizes username (lowercase, trimmed, strip '@')
  */
 export function normalizeTargetUsername(raw: string): string {
-  return raw.replace(/^@/, "").trim().toLowerCase();
+  let cleaned = raw.replace(/^@/, "").trim().toLowerCase();
+  if (cleaned === "lee parsons" || cleaned === "the lee parsons") return "theleeparsons";
+  return cleaned.replace(/\s+/g, "");
 }
 
 /**
@@ -1356,6 +1402,54 @@ export function getAuditCache(
     }
   }
   return null;
+}
+
+/**
+ * Async persistent audit cache getter with 7-day default TTL
+ * Checks memoryVault first, then falls back to Supabase audit_cache table.
+ */
+export async function getAuditCacheAsync(
+  targetUsername: string,
+  auditType: string,
+  maxAgeSeconds: number = 7 * 86400 // Default 7 days
+): Promise<any | null> {
+  const cleanTarget = normalizeTargetUsername(targetUsername);
+  const key = `${cleanTarget}:${auditType}`;
+
+  // 1. Check in-memory vault first
+  const memoryEntry = getAuditCache(cleanTarget, auditType, maxAgeSeconds);
+  if (memoryEntry) {
+    return memoryEntry;
+  }
+
+  // 2. Fall back to shared Supabase audit_cache
+  const sbData = await getAuditCacheFromSupabase(key, maxAgeSeconds);
+  if (sbData) {
+    loadVault();
+    memoryVault.auditCache[key] = {
+      data_json: JSON.stringify(sbData),
+      created_at: new Date().toISOString(),
+    };
+    return sbData;
+  }
+
+  return null;
+}
+
+/**
+ * Async persistent audit cache saver
+ * Saves to local memoryVault and writes to Supabase audit_cache table.
+ */
+export async function saveAuditCacheAsync(
+  targetUsername: string,
+  auditType: string,
+  data: any
+): Promise<void> {
+  const cleanTarget = normalizeTargetUsername(targetUsername);
+  const key = `${cleanTarget}:${auditType}`;
+
+  saveAuditCache(cleanTarget, auditType, data);
+  await syncAuditCacheToSupabase(key, data);
 }
 
 /**

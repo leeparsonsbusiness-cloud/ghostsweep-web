@@ -274,9 +274,8 @@ export function evaluateBotHeuristics(input: AccountForensicInput): { isBot: boo
     botScore += 40;
   }
 
-  const inactiveDays = input.recentActivityDays ?? (input.postCount === 0 ? 360 : 45);
-  const isGhost = inactiveDays > 120;
   const isBot = botScore >= 40;
+  const isGhost = isBot || (input.recentActivityDays !== undefined && input.recentActivityDays > 120);
 
   return {
     isBot,
@@ -386,15 +385,15 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
     confidence = 60;
   }
 
+  const isBot = botCheck.isBot;
+  const isGhost = botCheck.isGhost;
   const inactiveDays = input.recentActivityDays ?? (
-    gender === "bot" ? 280 + (index * 15) % 150 :
-    input.postCount === 0 ? 180 + (index * 25) % 180 :
-    25 + (index * 35) % 120
+    isBot ? 280 + (index * 15) % 150 :
+    14 + (index * 5) % 30
   );
 
   const followsYou = Boolean(input.followsYou);
   const isNonReciprocal = !followsYou;
-  const isGhost = botCheck.isGhost || inactiveDays > 120;
   const isVerified = Boolean(input.isVerified);
   const rank = input.chronologicalRank ?? index;
   const isBrand = gender === "brand";
@@ -408,10 +407,10 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
     timestampLabel = "⭐ Verified Account";
   } else if (input.isPrivate) {
     timestampLabel = "🔒 Private Profile";
-  } else if (isGhost) {
-    timestampLabel = `🚫 Inactive >${inactiveDays}d`;
+  } else if (isBot) {
+    timestampLabel = `🚫 Bot / Inactive`;
   } else {
-    timestampLabel = "Audited Follow";
+    timestampLabel = "⚡ Active Following";
   }
 
   const genderLabel = 
@@ -424,19 +423,15 @@ export function classifyAccount(input: AccountForensicInput, index: number = 0):
 
   let tag = "";
   if (isNewFollow) {
-    tag = `🆕 New Follow • ${genderLabel} • ${reciprocityLabel}`;
-  } else if (gender === "bot") {
-    tag = "🤖 Ghost • Follower Farm";
+    tag = `🆕 New Follow • ${genderLabel}`;
+  } else if (isBot) {
+    tag = "🤖 Suspected Bot / Spam";
   } else if (gender === "brand") {
-    tag = `🏢 Brand / Studio • ${reciprocityLabel}`;
-  } else if (isNonReciprocal && isGhost) {
-    tag = `${genderLabel} • 🚫 Inactive >${inactiveDays}d`;
-  } else if (isNonReciprocal) {
-    tag = `${genderLabel} • 🚫 Doesn't Follow Back`;
+    tag = `🏢 Brand / Page`;
   } else if (isGhost) {
-    tag = `🤖 Ghost • Inactive >${inactiveDays}d`;
+    tag = `🤖 Inactive Follow`;
   } else {
-    tag = `${genderLabel} • 🔄 Mutual`;
+    tag = `${genderLabel} • ${reciprocityLabel}`;
   }
 
   return {

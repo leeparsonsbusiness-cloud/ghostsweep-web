@@ -210,7 +210,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
         {/* 3. Follow Activity Header */}
         <div className="flex items-center justify-between gap-2 mb-3 pt-2">
           <div className="flex items-center gap-1.5 text-xs text-zinc-700 dark:text-zinc-200 font-bold">
-            <span>⚡ Chronological Activity {isUnlocked ? `(${allAccounts.length} accounts)` : "(Top 5 Preview)"}</span>
+            <span>⚡ Audited Following Activity {isUnlocked ? `(${allAccounts.length} accounts)` : "(Top 5 Preview)"}</span>
           </div>
 
           <button
@@ -263,7 +263,7 @@ export const MinimalResultsCard: React.FC<MinimalResultsCardProps> = ({
                                     ? "bg-emerald-100 dark:bg-emerald-900/80 text-emerald-700 dark:text-emerald-300"
                                     : "bg-sky-100 dark:bg-sky-900/80 text-sky-700 dark:text-sky-300"
                                 }`}>
-                                  {acc.isNewFollow ? "⚡ NEW FOLLOW" : "#1 MOST RECENT"}
+                                  {acc.isNewFollow ? "⚡ NEW FOLLOW" : "AUDITED FOLLOWING"}
                                 </span>
                               </div>
                               <span className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate block">

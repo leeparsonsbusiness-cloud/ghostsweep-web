@@ -69,12 +69,22 @@ export default function Home() {
       // If returning from payment unlock
       const forceRefreshParam = urlParams.get("forceRefresh") === "true" || urlParams.get("refresh") === "true";
       if (unlockedParam === "true" && usernameParam) {
-        const cleanTarget = usernameParam.replace(/^@/, "").toLowerCase();
+        let cleanTarget = usernameParam.replace(/^@/, "").trim().toLowerCase();
+        if (cleanTarget === "lee parsons" || cleanTarget === "the lee parsons") cleanTarget = "theleeparsons";
+        cleanTarget = cleanTarget.replace(/\s+/g, "");
         setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
         trackPurchase(planParam || "standard", planParam === "unlimited" ? 9.99 : 3.99, cleanTarget);
-        handleAuditSubmit(cleanTarget, true);
+        handleAuditSubmit(cleanTarget, false);
       } else if (usernameParam) {
-        handleAuditSubmit(usernameParam, forceRefreshParam);
+        let cleanTarget = usernameParam.replace(/^@/, "").trim().toLowerCase();
+        if (cleanTarget === "lee parsons" || cleanTarget === "the lee parsons") cleanTarget = "theleeparsons";
+        cleanTarget = cleanTarget.replace(/\s+/g, "");
+        handleAuditSubmit(cleanTarget, forceRefreshParam);
+      }
+
+      // Clean URL parameters to prevent reload loops on mobile
+      if (typeof window !== "undefined" && window.location.search) {
+        window.history.replaceState({}, document.title, window.location.pathname);
       }
 
       // If returning from magic token
