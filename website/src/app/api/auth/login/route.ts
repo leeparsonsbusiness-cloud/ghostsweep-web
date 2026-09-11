@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateUser, getUserUnlockedAudits, isBlockedEmail } from "@/lib/db";
+import { authenticateUserAsync, getUserUnlockedAuditsAsync, getUserPlanAndUsageAsync, isBlockedEmail } from "@/lib/db";
 import { createSessionToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const authRes = authenticateUser(email, password);
+    const authRes = await authenticateUserAsync(email, password);
     if (!authRes.success || !authRes.user) {
       return NextResponse.json(
         { success: false, error: authRes.error || "Authentication failed." },
@@ -32,7 +32,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const unlockedAudits = getUserUnlockedAudits(email);
+    const [unlockedAudits, usage] = await Promise.all([
+      getUserUnlockedAuditsAsync(email),
+      getUserPlanAndUsageAsync(email),
+    ]);
 
     // Generate cryptographically signed stateless JWT session token
     const token = createSessionToken({
@@ -47,7 +50,9 @@ export async function POST(req: NextRequest) {
       user: {
         id: authRes.user.id,
         email: authRes.user.email,
+        plan: usage.plan,
       },
+      plan: usage.plan,
       unlockedAudits,
       message: `Welcome back, ${email}!`,
     });

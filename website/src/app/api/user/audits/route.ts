@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserUnlockedAudits, getUserPlanAndUsage } from "@/lib/db";
+import { getUserUnlockedAuditsAsync, getUserPlanAndUsageAsync } from "@/lib/db";
 import { verifySessionToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -44,18 +44,19 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Fetch from DB storage if empty
-  if (unlockedAudits.length === 0) {
-    unlockedAudits = getUserUnlockedAudits(email);
-  }
+  // Always fetch latest from Supabase DB storage to ensure fresh cross-container sync
+  const [dbUnlockedAudits, usage] = await Promise.all([
+    getUserUnlockedAuditsAsync(email),
+    getUserPlanAndUsageAsync(email),
+  ]);
 
-  const usage = getUserPlanAndUsage(email);
+  const combinedAudits = Array.from(new Set([...unlockedAudits, ...dbUnlockedAudits]));
 
   return NextResponse.json({
     success: true,
     authenticated: true,
     email,
-    unlockedAudits,
+    unlockedAudits: combinedAudits,
     plan: usage.plan,
     searchesUsed: usage.searchesUsed,
     searchLimit: usage.searchLimit,

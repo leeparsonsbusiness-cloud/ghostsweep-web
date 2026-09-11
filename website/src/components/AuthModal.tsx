@@ -21,15 +21,16 @@ import {
   LogOut,
   Ban
 } from "lucide-react";
-import { AuditHistoryEntry, isVipEmail } from "@/lib/types";
+import { AuditHistoryEntry, isVipEmail, UserPlan } from "@/lib/types";
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   userEmail: string | null;
   unlockedAudits: string[];
+  userPlan?: UserPlan;
   onSelectUnlockedAccount: (username: string) => void;
-  onLoginSuccess: (email: string, unlockedAudits: string[]) => void;
+  onLoginSuccess: (email: string, unlockedAudits: string[], plan?: UserPlan) => void;
   onSignOut?: () => void;
 }
 
@@ -38,6 +39,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   userEmail,
   unlockedAudits,
+  userPlan = "free",
   onSelectUnlockedAccount,
   onLoginSuccess,
   onSignOut,
@@ -143,7 +145,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           localStorage.setItem("gs_session_token", data.token);
         }
         setSuccessMessage(data.message || "Successfully authenticated!");
-        onLoginSuccess(cleanEmail, data.unlockedAudits || []);
+        onLoginSuccess(cleanEmail, data.unlockedAudits || [], data.plan || "free");
         setTimeout(() => {
           onClose();
         }, 600);
@@ -340,8 +342,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         <span className="text-amber-300 font-black flex items-center gap-1">
                           <Crown className="w-3.5 h-3.5" /> VIP Founder Unlimited ($0/mo)
                         </span>
+                      ) : userPlan === "unlimited" ? (
+                        <span className="text-emerald-400 font-bold flex items-center gap-1">
+                          <Sparkles className="w-3.5 h-3.5" /> Pro Radar Active ($9.99/mo)
+                        </span>
+                      ) : userPlan === "standard" ? (
+                        <span className="text-sky-400 font-bold flex items-center gap-1">
+                          <ShieldCheck className="w-3.5 h-3.5 text-sky-400" /> Standard Unlocked ($3.99)
+                        </span>
                       ) : (
-                        <span>Standard Active ($3.99)</span>
+                        <span className="text-zinc-500 dark:text-zinc-400 font-medium">Free Tier (1 Free Search)</span>
                       )}
                     </span>
                   </div>

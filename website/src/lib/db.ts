@@ -184,19 +184,20 @@ async function syncUserToSupabase(user: DbUser) {
   const supabase = getSupabaseClient();
   if (!supabase) return;
   try {
-    await supabase.from("users").upsert({
+    const { error } = await supabase.from("users").upsert({
       id: user.id,
       email: user.email,
-      password_hash: user.password_hash,
-      stripe_customer_id: user.stripe_customer_id,
+      password_hash: user.password_hash || null,
+      stripe_customer_id: user.stripe_customer_id || null,
       plan: user.plan,
-      searches_this_week: user.searches_this_week || 0,
       searches_this_month: user.searches_this_month || 0,
       searched_accounts: user.searched_accounts || [],
-      search_week_reset: user.search_week_reset,
-      search_month_reset: user.search_month_reset,
+      search_month_reset: user.search_month_reset || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       updated_at: new Date().toISOString(),
     }, { onConflict: "email" });
+    if (error) {
+      console.warn("[Supabase Sync] User upsert warning:", error.message);
+    }
   } catch (err: any) {
     console.warn("[Supabase Sync] User error:", err.message);
   }
@@ -251,6 +252,55 @@ async function syncSearchHistoryToSupabase(entry: { user_email: string; target_u
 }
 
 /**
+ * Direct Supabase database readers (bypasses serverless container memory isolation)
+ */
+export async function getUserFromSupabase(email: string): Promise<DbUser | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("email", cleanEmail)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    return {
+      id: data.id,
+      email: data.email,
+      password_hash: data.password_hash,
+      stripe_customer_id: data.stripe_customer_id,
+      plan: data.plan || "free",
+      searches_this_month: data.searches_this_month || 0,
+      searched_accounts: data.searched_accounts || [],
+      search_month_reset: data.search_month_reset || new Date().toISOString(),
+      created_at: data.created_at || new Date().toISOString(),
+    };
+  } catch (err) {
+    return null;
+  }
+}
+
+export async function getUnlockedAuditsFromSupabase(email: string): Promise<string[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return [];
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    const { data, error } = await supabase
+      .from("unlocked_audits")
+      .select("target_username")
+      .eq("user_email", cleanEmail);
+
+    if (error || !data) return [];
+    return data.map((row: any) => row.target_username.toLowerCase());
+  } catch (err) {
+    return [];
+  }
+}
+
+/**
  * Normalizes username (lowercase, trimmed, strip '@')
  */
 export function normalizeTargetUsername(raw: string): string {
@@ -268,6 +318,73 @@ export function hashPassword(password: string): string {
 /**
  * Register a new user with password / access PIN
  */
+export async function registerUserAsync(
+  email: string,
+  password?: string
+): Promise<{ success: boolean; user?: DbUser; error?: string }> {
+  loadVault();
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || (!cleanEmail.includes("@") && cleanEmail !== "dev")) {
+    return { success: false, error: "Please enter a valid email address or username." };
+  }
+
+  if (isBlockedEmail(cleanEmail)) {
+    return { success: false, error: "Nah shorty." };
+  }
+
+  let existing = memoryVault.users[cleanEmail];
+  if (!existing) {
+    const dbUser = await getUserFromSupabase(cleanEmail);
+    if (dbUser) {
+      existing = dbUser;
+      memoryVault.users[cleanEmail] = existing;
+      memoryVault.usersById[existing.id] = cleanEmail;
+    }
+  }
+
+  const passwordHash = password ? hashPassword(password) : null;
+  const isVip = isVipEmail(cleanEmail);
+
+  if (existing) {
+    if (existing.password_hash && cleanEmail !== "dev" && cleanEmail !== "leeparsonsbusiness@gmail.com") {
+      if (password && existing.password_hash === passwordHash) {
+        return { success: true, user: existing };
+      }
+      return { success: false, error: "An account with this email already exists. Please switch to Sign In." };
+    }
+    if (isVip) existing.plan = "unlimited";
+    if (passwordHash) {
+      existing.password_hash = passwordHash;
+    }
+    persistVault();
+    await syncUserToSupabase(existing);
+    return { success: true, user: existing };
+  }
+
+  const id = cleanEmail === "leeparsonsbusiness@gmail.com" ? "usr_lee_founder" : `usr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const now = new Date().toISOString();
+  const resetDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const newUser: DbUser = {
+    id,
+    email: cleanEmail,
+    password_hash: passwordHash,
+    stripe_customer_id: null,
+    plan: isVip ? "unlimited" : "free",
+    searches_this_month: 0,
+    searched_accounts: [],
+    search_month_reset: resetDate,
+    created_at: now,
+  };
+
+  memoryVault.users[cleanEmail] = newUser;
+  memoryVault.usersById[id] = cleanEmail;
+  persistVault();
+  await syncUserToSupabase(newUser);
+
+  return { success: true, user: newUser };
+}
+
 export function registerUser(
   email: string,
   password?: string
@@ -301,7 +418,6 @@ export function registerUser(
   const id = cleanEmail === "leeparsonsbusiness@gmail.com" ? "usr_lee_founder" : `usr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const now = new Date().toISOString();
   const resetDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-  const weekResetDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const newUser: DbUser = {
     id,
@@ -309,10 +425,8 @@ export function registerUser(
     password_hash: passwordHash,
     stripe_customer_id: null,
     plan: isVip ? "unlimited" : "free",
-    searches_this_week: 0,
     searches_this_month: 0,
     searched_accounts: [],
-    search_week_reset: weekResetDate,
     search_month_reset: resetDate,
     created_at: now,
   };
@@ -326,8 +440,81 @@ export function registerUser(
 }
 
 /**
- * Authenticate a user by email + password / access PIN
+ * Authenticate a user by email + password / access PIN (Async with cloud Supabase fallback)
  */
+export async function authenticateUserAsync(
+  email: string,
+  password?: string
+): Promise<{ success: boolean; user?: DbUser; error?: string }> {
+  loadVault();
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || (!cleanEmail.includes("@") && cleanEmail !== "dev")) {
+    return { success: false, error: "Please enter a valid email address or username." };
+  }
+
+  if (isBlockedEmail(cleanEmail)) {
+    return { success: false, error: "Nah shorty." };
+  }
+
+  let existing = memoryVault.users[cleanEmail];
+
+  // Auto-provision known VIP accounts on-demand if missing in runtime state
+  if (!existing && isVipEmail(cleanEmail)) {
+    const isLee = cleanEmail === "leeparsonsbusiness@gmail.com";
+    const defaultVipPass = isLee ? "332844" : "dev";
+    existing = {
+      id: isLee ? "usr_lee_founder" : "usr_dev_master",
+      email: cleanEmail,
+      password_hash: hashPassword(defaultVipPass),
+      stripe_customer_id: null,
+      plan: "unlimited",
+      searches_this_month: 0,
+      searched_accounts: [],
+      search_month_reset: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      created_at: new Date().toISOString(),
+    };
+    memoryVault.users[cleanEmail] = existing;
+    memoryVault.usersById[existing.id] = cleanEmail;
+    persistVault();
+    await syncUserToSupabase(existing);
+  }
+
+  // If not found in memory vault, check Supabase
+  if (!existing) {
+    const dbUser = await getUserFromSupabase(cleanEmail);
+    if (dbUser) {
+      existing = dbUser;
+      memoryVault.users[cleanEmail] = existing;
+      memoryVault.usersById[existing.id] = cleanEmail;
+      persistVault();
+    }
+  }
+
+  if (!existing) {
+    return { 
+      success: false, 
+      error: "No account found with this email. Please switch to the 'Create Account' tab to register." 
+    };
+  }
+
+  const isVip = isVipEmail(cleanEmail);
+  if (isVip) existing.plan = "unlimited";
+
+  if (password && existing.password_hash) {
+    const inputHash = hashPassword(password);
+    if (inputHash !== existing.password_hash) {
+      return { success: false, error: "Incorrect password. Please try again." };
+    }
+  } else if (password && !existing.password_hash) {
+    const passwordHash = hashPassword(password);
+    existing.password_hash = passwordHash;
+    persistVault();
+    await syncUserToSupabase(existing);
+  }
+
+  return { success: true, user: existing };
+}
+
 export function authenticateUser(
   email: string,
   password?: string
@@ -454,6 +641,104 @@ export function setUserPlan(email: string, plan: UserPlan): DbUser {
   user.search_week_reset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   persistVault();
   return user;
+}
+
+/**
+ * Update user plan after successful payment with immediate Supabase cloud persistence
+ */
+export async function setUserPlanAsync(email: string, plan: UserPlan, stripeCustomerId?: string): Promise<DbUser> {
+  const user = getOrCreateUser(email, stripeCustomerId);
+  if (isVipEmail(email)) {
+    user.plan = "unlimited";
+  } else {
+    user.plan = plan;
+  }
+  if (stripeCustomerId) {
+    user.stripe_customer_id = stripeCustomerId;
+  }
+  user.searches_this_week = 0;
+  user.search_week_reset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  persistVault();
+  await syncUserToSupabase(user);
+  return user;
+}
+
+/**
+ * Check user plan and usage status (Async with Supabase cloud check)
+ */
+export async function getUserPlanAndUsageAsync(emailOrUserId: string | null | undefined): Promise<{
+  plan: UserPlan;
+  searchesUsed: number;
+  searchLimit: number;
+  resetsAt: string;
+  isRestricted: boolean;
+  canSearchTarget: (target: string) => boolean;
+}> {
+  const defaultReset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  if (!emailOrUserId) {
+    return {
+      plan: "free",
+      searchesUsed: 0,
+      searchLimit: 1,
+      resetsAt: defaultReset,
+      isRestricted: false,
+      canSearchTarget: () => true,
+    };
+  }
+
+  loadVault();
+  let email = emailOrUserId.trim().toLowerCase();
+  if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
+    email = memoryVault.usersById[emailOrUserId];
+  }
+
+  if (isVipEmail(email)) {
+    return {
+      plan: "unlimited",
+      searchesUsed: 0,
+      searchLimit: 999999,
+      resetsAt: defaultReset,
+      isRestricted: false,
+      canSearchTarget: () => true,
+    };
+  }
+
+  let user = memoryVault.users[email];
+  if (!user) {
+    const dbUser = await getUserFromSupabase(email);
+    if (dbUser) {
+      memoryVault.users[email] = dbUser;
+      memoryVault.usersById[dbUser.id] = email;
+      user = dbUser;
+    }
+  }
+
+  if (!user) {
+    return {
+      plan: "free",
+      searchesUsed: 0,
+      searchLimit: 1,
+      resetsAt: defaultReset,
+      isRestricted: false,
+      canSearchTarget: () => true,
+    };
+  }
+
+  const plan = user.plan || "free";
+  const limit = plan === "unlimited" ? 30 : plan === "standard" ? 10 : 1;
+  const searchesUsed = user.searches_this_month || 0;
+
+  return {
+    plan,
+    searchesUsed,
+    searchLimit: limit,
+    resetsAt: user.search_month_reset || defaultReset,
+    isRestricted: plan !== "unlimited" && !isVipEmail(email) && searchesUsed >= limit,
+    canSearchTarget: (_target: string) => {
+      if (isVipEmail(email)) return true;
+      return searchesUsed < limit;
+    },
+  };
 }
 
 /**
@@ -613,6 +898,58 @@ export function recordUserSearch(emailOrUserId: string, targetUsername: string):
 /**
  * Unlock full forensic report for a user and target Instagram handle
  */
+/**
+ * Unlock full forensic report for a user and target Instagram handle (Async with Supabase cloud persistence)
+ */
+export async function unlockAuditAsync(emailOrUserId: string, targetUsername: string): Promise<boolean> {
+  loadVault();
+  const cleanTarget = normalizeTargetUsername(targetUsername);
+  if (!cleanTarget) return false;
+
+  let email = emailOrUserId.trim().toLowerCase();
+  if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
+    email = memoryVault.usersById[emailOrUserId];
+  }
+
+  if (!email) return false;
+
+  const user = getOrCreateUser(email);
+  if (user.plan === "free") {
+    user.plan = "standard";
+  }
+
+  if (!memoryVault.unlockedAudits[email]) {
+    memoryVault.unlockedAudits[email] = {};
+  }
+
+  memoryVault.unlockedAudits[email][cleanTarget] = new Date().toISOString();
+  if (!user.searched_accounts) user.searched_accounts = [];
+  if (!user.searched_accounts.includes(cleanTarget)) {
+    user.searched_accounts.push(cleanTarget);
+    user.searches_this_month = user.searched_accounts.length;
+  }
+
+  persistVault();
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await Promise.all([
+        supabase.from("unlocked_audits").upsert({
+          user_email: email,
+          target_username: cleanTarget,
+          unlocked_at: new Date().toISOString(),
+        }, { onConflict: "user_email,target_username" }),
+        syncUserToSupabase(user)
+      ]);
+    } catch (err: any) {
+      console.warn("[Supabase unlockAuditAsync error]:", err.message);
+    }
+  }
+
+  return true;
+}
+
 export function unlockAudit(emailOrUserId: string, targetUsername: string): boolean {
   loadVault();
   const cleanTarget = normalizeTargetUsername(targetUsername);
@@ -648,8 +985,70 @@ export function unlockAudit(emailOrUserId: string, targetUsername: string): bool
 }
 
 /**
- * Check if a specific Instagram audit is unlocked for a user
+ * Check if a specific Instagram audit is unlocked for a user (Async with Supabase cloud query)
  */
+export async function isAuditUnlockedAsync(
+  emailOrUserId: string | null | undefined,
+  targetUsername: string
+): Promise<boolean> {
+  if (!emailOrUserId) return false;
+  loadVault();
+  const cleanTarget = normalizeTargetUsername(targetUsername);
+  if (!cleanTarget) return false;
+
+  let email = emailOrUserId.trim().toLowerCase();
+  if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
+    email = memoryVault.usersById[emailOrUserId];
+  }
+
+  if (isVipEmail(email)) {
+    return true; // VIP access unlocked for all profiles
+  }
+
+  // 1. In-memory check
+  if (memoryVault.unlockedAudits[email]?.[cleanTarget]) {
+    return true;
+  }
+  const memUser = memoryVault.users[email];
+  if (memUser && memUser.plan === "unlimited") {
+    return true;
+  }
+
+  // 2. Supabase Cloud Check
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      // Check user plan in Supabase
+      const dbUser = await getUserFromSupabase(email);
+      if (dbUser) {
+        memoryVault.users[email] = dbUser;
+        memoryVault.usersById[dbUser.id] = email;
+        if (dbUser.plan === "unlimited") {
+          return true;
+        }
+      }
+
+      // Check unlocked_audits table
+      const { data, error } = await supabase
+        .from("unlocked_audits")
+        .select("id")
+        .eq("user_email", email)
+        .eq("target_username", cleanTarget)
+        .maybeSingle();
+
+      if (!error && data) {
+        if (!memoryVault.unlockedAudits[email]) memoryVault.unlockedAudits[email] = {};
+        memoryVault.unlockedAudits[email][cleanTarget] = new Date().toISOString();
+        return true;
+      }
+    } catch (err: any) {
+      console.warn("[Supabase isAuditUnlockedAsync error]:", err.message);
+    }
+  }
+
+  return false;
+}
+
 export function isAuditUnlocked(
   emailOrUserId: string | null | undefined,
   targetUsername: string
@@ -678,8 +1077,36 @@ export function isAuditUnlocked(
 }
 
 /**
- * Get all unlocked target usernames for a user
+ * Get all unlocked target usernames for a user (Async with Supabase cloud query)
  */
+export async function getUserUnlockedAuditsAsync(emailOrUserId: string): Promise<string[]> {
+  if (!emailOrUserId) return [];
+  loadVault();
+  let email = emailOrUserId.trim().toLowerCase();
+  if (!email.includes("@") && memoryVault.usersById[emailOrUserId]) {
+    email = memoryVault.usersById[emailOrUserId];
+  }
+
+  if (isVipEmail(email)) {
+    return ["* (VIP Unlimited Access)"];
+  }
+
+  const memoryAudits = Object.keys(memoryVault.unlockedAudits[email] || {});
+  const supabaseAudits = await getUnlockedAuditsFromSupabase(email);
+
+  const combined = Array.from(new Set([...memoryAudits, ...supabaseAudits]));
+  if (combined.length > 0) {
+    if (!memoryVault.unlockedAudits[email]) memoryVault.unlockedAudits[email] = {};
+    for (const t of combined) {
+      if (!memoryVault.unlockedAudits[email][t]) {
+        memoryVault.unlockedAudits[email][t] = new Date().toISOString();
+      }
+    }
+  }
+
+  return combined;
+}
+
 export function getUserUnlockedAudits(emailOrUserId: string): string[] {
   if (!emailOrUserId) return [];
   loadVault();

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { registerUser, getUserUnlockedAudits, isBlockedEmail } from "@/lib/db";
+import { registerUserAsync, getUserUnlockedAuditsAsync, getUserPlanAndUsageAsync, isBlockedEmail } from "@/lib/db";
 import { createSessionToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const regRes = registerUser(email, password);
+    const regRes = await registerUserAsync(email, password);
     if (!regRes.success || !regRes.user) {
       return NextResponse.json(
         { success: false, error: regRes.error || "Failed to create account." },
@@ -32,7 +32,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const unlockedAudits = getUserUnlockedAudits(email);
+    const [unlockedAudits, usage] = await Promise.all([
+      getUserUnlockedAuditsAsync(email),
+      getUserPlanAndUsageAsync(email),
+    ]);
 
     // Generate cryptographically signed stateless JWT session token
     const token = createSessionToken({
@@ -47,7 +50,9 @@ export async function POST(req: NextRequest) {
       user: {
         id: regRes.user.id,
         email: regRes.user.email,
+        plan: usage.plan,
       },
+      plan: usage.plan,
       unlockedAudits,
       message: `Account created successfully for ${email}!`,
     });

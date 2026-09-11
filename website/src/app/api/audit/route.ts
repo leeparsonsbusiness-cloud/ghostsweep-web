@@ -11,8 +11,10 @@ import {
   getAuditCache, 
   saveAuditCache, 
   isAuditUnlocked, 
+  isAuditUnlockedAsync,
   normalizeTargetUsername,
   getUserPlanAndUsage,
+  getUserPlanAndUsageAsync,
   recordUserSearch,
   recordFollowsSnapshot,
   getFollowsDiff,
@@ -124,11 +126,21 @@ export interface AuditResult {
  * Clean Instagram Handle (remove '@', whitespace, URL prefixes)
  */
 function cleanHandle(raw: string): string {
-  return normalizeTargetUsername(
-    raw
-      .replace(/^https?:\/\/(www\.)?instagram\.com\//, "")
-      .replace(/\/.*$/, "")
-  );
+  let cleaned = raw
+    .trim()
+    .replace(/^@/, "")
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//, "")
+    .replace(/\/.*$/, "")
+    .toLowerCase();
+
+  // If user entered "Lee Parsons" or "lee parsons", resolve to founder profile
+  if (cleaned === "lee parsons" || cleaned === "the lee parsons") {
+    return "theleeparsons";
+  }
+
+  // Strip all internal whitespace for valid IG handle format
+  cleaned = cleaned.replace(/\s+/g, "");
+  return normalizeTargetUsername(cleaned);
 }
 
 interface TargetProfileData {
@@ -609,7 +621,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const unlocked = isAuditUnlocked(userEmail, cleanUsername);
+    const unlocked = await isAuditUnlockedAsync(userEmail, cleanUsername);
 
     // Check cache first (15s anti-spam debounce window)
     if (!forceRefresh) {
@@ -621,7 +633,7 @@ export async function POST(req: NextRequest) {
 
     // Enforce Plan & Search Limits
     if (userEmail) {
-      const usage = getUserPlanAndUsage(userEmail);
+      const usage = await getUserPlanAndUsageAsync(userEmail);
       if (!usage.canSearchTarget(cleanUsername)) {
         if (usage.plan === "standard") {
           return NextResponse.json(
@@ -732,7 +744,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const unlocked = isAuditUnlocked(userEmail, cleanUsername);
+    const unlocked = await isAuditUnlockedAsync(userEmail, cleanUsername);
 
     // Check cache first (15s anti-spam debounce window)
     if (!forceRefresh) {
@@ -744,7 +756,7 @@ export async function GET(req: NextRequest) {
 
     // Enforce Plan & Search Limits
     if (userEmail) {
-      const usage = getUserPlanAndUsage(userEmail);
+      const usage = await getUserPlanAndUsageAsync(userEmail);
       if (!usage.canSearchTarget(cleanUsername)) {
         if (usage.plan === "standard") {
           return NextResponse.json(

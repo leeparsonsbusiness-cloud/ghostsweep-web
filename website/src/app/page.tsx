@@ -10,6 +10,7 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 import { AuthModal } from "@/components/AuthModal";
 import { LegalModal, LegalModalType } from "@/components/LegalModal";
 import { AuditResult } from "@/app/api/audit/route";
+import { UserPlan } from "@/lib/types";
 import { trackSearchEvent, trackInitiateCheckout, trackPurchase, trackPaywallView } from "@/lib/analytics";
 
 export default function Home() {
@@ -23,6 +24,7 @@ export default function Home() {
   const [auditData, setAuditData] = useState<AuditResult | null>(null);
   const [auditError, setAuditError] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userPlan, setUserPlan] = useState<UserPlan>("free");
   const [unlockedAudits, setUnlockedAudits] = useState<string[]>([]);
   const [currentUsername, setCurrentUsername] = useState<string>("theleeparsons");
 
@@ -98,8 +100,13 @@ export default function Home() {
           try {
             const res = await fetch(`/api/user/audits?email=${encodeURIComponent(emailToQuery)}`);
             const json = await res.json();
-            if (json.success && Array.isArray(json.unlockedAudits)) {
-              setUnlockedAudits(json.unlockedAudits);
+            if (json.success) {
+              if (Array.isArray(json.unlockedAudits)) {
+                setUnlockedAudits(json.unlockedAudits);
+              }
+              if (json.plan) {
+                setUserPlan(json.plan);
+              }
             }
           } catch (err) {
             console.error("Failed to load user audits:", err);
@@ -219,15 +226,17 @@ export default function Home() {
     setIsAuthOpen(false);
   };
 
-  const handleLoginSuccess = (email: string, audits: string[]) => {
+  const handleLoginSuccess = (email: string, audits: string[], plan?: UserPlan) => {
     setUserEmail(email);
     setUnlockedAudits(audits);
+    if (plan) setUserPlan(plan);
     localStorage.setItem("gs_user_email", email);
   };
 
   const handleSignOut = () => {
     setUserEmail(null);
     setUnlockedAudits([]);
+    setUserPlan("free");
     localStorage.removeItem("gs_user_email");
     localStorage.removeItem("gs_session_token");
     document.cookie = "gs_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
@@ -238,6 +247,7 @@ export default function Home() {
     setUserEmail(email);
     localStorage.setItem("gs_user_email", email);
     setUnlockedAudits((prev) => Array.from(new Set([...prev, cleanTarget])));
+    setUserPlan("standard");
     trackPurchase("standard", 3.99, cleanTarget);
     if (auditData) {
       setAuditData({
@@ -250,6 +260,7 @@ export default function Home() {
   const handleSuccessUpgrade = (email: string) => {
     setUserEmail(email);
     localStorage.setItem("gs_user_email", email);
+    setUserPlan("unlimited");
     trackPurchase("unlimited", 9.99, currentUsername);
     if (currentUsername) {
       handleAuditSubmit(currentUsername);
@@ -265,6 +276,7 @@ export default function Home() {
   };
 
   const isCurrentTargetUnlocked = Boolean(
+    userPlan === "unlimited" ||
     auditData?.isUnlocked || 
     (currentUsername && unlockedAudits.includes(currentUsername.toLowerCase()))
   );
@@ -341,6 +353,7 @@ export default function Home() {
         onClose={handleCloseAuth}
         userEmail={userEmail}
         unlockedAudits={unlockedAudits}
+        userPlan={userPlan}
         onSelectUnlockedAccount={(handle) => {
           handleAuditSubmit(handle);
         }}

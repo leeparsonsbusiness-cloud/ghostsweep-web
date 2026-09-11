@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { unlockAudit, getOrCreateUser, setUserPlan, UserPlan } from "@/lib/db";
+import { unlockAuditAsync, setUserPlanAsync, getOrCreateUser, UserPlan } from "@/lib/db";
 import { sendPurchaseConfirmationEmail } from "@/lib/email";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 
@@ -35,10 +35,9 @@ export async function POST(req: NextRequest) {
       const plan: UserPlan = metadata.plan === "unlimited" ? "unlimited" : "standard";
 
       if (email) {
-        getOrCreateUser(email, customerId);
-        setUserPlan(email, plan);
+        await setUserPlanAsync(email, plan, customerId);
         if (targetUsername) {
-          unlockAudit(email, targetUsername);
+          await unlockAuditAsync(email, targetUsername);
         }
         console.log(`[Stripe Webhook] Successfully activated ${plan} plan for user ${email}, unlocked target: @${targetUsername}`);
 
@@ -48,7 +47,7 @@ export async function POST(req: NextRequest) {
         });
 
         // Record server-verified purchase conversion
-        recordAnalyticsEvent({
+        await recordAnalyticsEvent({
           event_type: "PURCHASE_COMPLETED",
           session_id: session.id,
           target_username: targetUsername,

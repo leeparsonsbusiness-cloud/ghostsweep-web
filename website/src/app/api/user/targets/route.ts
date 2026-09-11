@@ -5,6 +5,7 @@ import {
   getTrackedTargets, 
   removeTrackedTarget, 
   getUserPlanAndUsage, 
+  getUserPlanAndUsageAsync,
   recordFollowsSnapshot,
   normalizeTargetUsername,
   isVipEmail
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
     }
 
     const targets = getTrackedTargets(email);
-    const planInfo = getUserPlanAndUsage(email);
+    const planInfo = await getUserPlanAndUsageAsync(email);
     const isVip = isVipEmail(email);
     const maxTargets = isVip || planInfo.plan === "unlimited" ? 999 : planInfo.plan === "standard" ? 3 : 1;
 

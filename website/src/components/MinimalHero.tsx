@@ -33,9 +33,16 @@ export const MinimalHero: React.FC<MinimalHeroProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputVal.trim()) {
-      onAuditSubmit(inputVal.trim());
+    let val = inputVal.trim();
+    if (!val) return;
+    const lower = val.toLowerCase().replace(/^@/, "");
+    if (lower === "lee parsons" || lower === "the lee parsons" || lower === "theleeparsons") {
+      val = "theleeparsons";
+    } else {
+      val = lower.replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/.*$/, "").replace(/\s+/g, "");
     }
+    setInputVal(val);
+    onAuditSubmit(val);
   };
 
   const handlePaste = async () => {
